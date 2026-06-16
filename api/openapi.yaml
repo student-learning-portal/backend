@@ -270,5 +270,6 @@ components:
           type: string
         content_url:
           type: string
+          format: uri
         last_progress_seconds:
           type: integer
