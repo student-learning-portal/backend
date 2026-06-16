@@ -89,6 +89,8 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - course_id
               properties:
                 course_id:
                   type: string
