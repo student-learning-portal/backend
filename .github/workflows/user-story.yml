@@ -1,0 +1,13 @@
+name: Generate User Story
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  call:
+    uses: student-learning-portal/.github/.github/workflows/user-story-reusable.yml@main
+    permissions:
+      contents: read
+      issues: write
+      models: read
