@@ -63,6 +63,16 @@ paths:
           name: category
           schema:
             type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+            default: 10
       responses:
         '200':
           description: Array of available courses
@@ -260,6 +270,10 @@ components:
         id:
           type: string
         title:
+          type: string
+        description:
+          type: string
+        category:
           type: string
         price:
           type: number

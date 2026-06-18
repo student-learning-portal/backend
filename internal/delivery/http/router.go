@@ -5,7 +5,7 @@ import (
 )
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
-func NewRouter() *http.ServeMux {
+func NewRouter(catalogHandler *CatalogHandler) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Registering the Hello World endpoint
@@ -14,7 +14,9 @@ func NewRouter() *http.ServeMux {
 	// Database ping endpoint
 	mux.HandleFunc("/api/v1/health/db", DBHealthHandler)
 
-	// TODO: register course catalog, player, progress and payments endpoints here
+	mux.HandleFunc("GET /api/v1/catalog/courses", catalogHandler.GetCourses)
+
+	// TODO: register player, progress and payments endpoints here
 
 	return mux
 }
