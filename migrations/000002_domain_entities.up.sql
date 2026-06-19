@@ -22,6 +22,7 @@ CREATE TABLE courses (
     teacher_id  UUID          NOT NULL REFERENCES users (id),
     title       TEXT          NOT NULL,
     description TEXT,
+    subject     TEXT          NOT NULL DEFAULT 'general',
     price       NUMERIC(12,2) NOT NULL DEFAULT 0,
     currency    TEXT          NOT NULL DEFAULT 'USD',
     status      TEXT          NOT NULL DEFAULT 'draft'
@@ -32,6 +33,7 @@ CREATE TABLE courses (
 
 CREATE INDEX ix_courses_teacher ON courses (teacher_id);
 CREATE INDEX ix_courses_status  ON courses (status);
+CREATE INDEX ix_courses_subject ON courses (subject);
 
 -- ============================================================
 -- Lessons (ordered within a course)

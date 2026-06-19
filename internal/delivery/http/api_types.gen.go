@@ -52,6 +52,48 @@ func (e GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus) Valid() b
 	}
 }
 
+// Defines values for GetCatalogCoursesParamsSortBy.
+const (
+	CreatedAt GetCatalogCoursesParamsSortBy = "created_at"
+	Price     GetCatalogCoursesParamsSortBy = "price"
+	Subject   GetCatalogCoursesParamsSortBy = "subject"
+	Title     GetCatalogCoursesParamsSortBy = "title"
+)
+
+// Valid indicates whether the value is a known member of the GetCatalogCoursesParamsSortBy enum.
+func (e GetCatalogCoursesParamsSortBy) Valid() bool {
+	switch e {
+	case CreatedAt:
+		return true
+	case Price:
+		return true
+	case Subject:
+		return true
+	case Title:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCatalogCoursesParamsSortOrder.
+const (
+	Asc  GetCatalogCoursesParamsSortOrder = "asc"
+	Desc GetCatalogCoursesParamsSortOrder = "desc"
+)
+
+// Valid indicates whether the value is a known member of the GetCatalogCoursesParamsSortOrder enum.
+func (e GetCatalogCoursesParamsSortOrder) Valid() bool {
+	switch e {
+	case Asc:
+		return true
+	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PostPurchaseWebhookJSONBodyStatus.
 const (
 	REFUNDED PostPurchaseWebhookJSONBodyStatus = "REFUNDED"
@@ -78,9 +120,12 @@ type Course struct {
 	Id          *openapi_types.UUID `json:"id,omitempty"`
 	Price       *float32            `json:"price,omitempty"`
 	Status      *CourseStatus       `json:"status,omitempty"`
-	TeacherId   *openapi_types.UUID `json:"teacher_id,omitempty"`
-	Title       *string             `json:"title,omitempty"`
-	UpdatedAt   *time.Time          `json:"updated_at,omitempty"`
+
+	// Subject Subject area, e.g. "english", "programming", "physics"
+	Subject   *string             `json:"subject,omitempty"`
+	TeacherId *openapi_types.UUID `json:"teacher_id,omitempty"`
+	Title     *string             `json:"title,omitempty"`
+	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
 }
 
 // CourseStatus defines model for Course.Status.
@@ -115,14 +160,25 @@ type GetCatalogCoursesParams struct {
 	// Search Course title/description keyword search
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 
+	// Subject Partial, case-insensitive match against the course subject (e.g. "program" matches "Programming")
+	Subject *string `form:"subject,omitempty" json:"subject,omitempty"`
+
 	// MinPrice Lower bound (inclusive) for course price
 	MinPrice *float32 `form:"min_price,omitempty" json:"min_price,omitempty"`
 
 	// MaxPrice Upper bound (inclusive) for course price
-	MaxPrice *float32 `form:"max_price,omitempty" json:"max_price,omitempty"`
-	Page     *int     `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int     `form:"page_size,omitempty" json:"page_size,omitempty"`
+	MaxPrice  *float32                          `form:"max_price,omitempty" json:"max_price,omitempty"`
+	SortBy    *GetCatalogCoursesParamsSortBy    `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+	SortOrder *GetCatalogCoursesParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+	Page      *int                              `form:"page,omitempty" json:"page,omitempty"`
+	PageSize  *int                              `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
+
+// GetCatalogCoursesParamsSortBy defines parameters for GetCatalogCourses.
+type GetCatalogCoursesParamsSortBy string
+
+// GetCatalogCoursesParamsSortOrder defines parameters for GetCatalogCourses.
+type GetCatalogCoursesParamsSortOrder string
 
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody defines parameters for PostPlayerCoursesCourseIdLessonsLessonIdProgress.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody struct {

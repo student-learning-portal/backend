@@ -38,13 +38,13 @@ INSERT INTO users (id, email, password_hash, full_name, role) VALUES
 -- ============================================================
 -- Courses: mix of statuses and price points, across 4 teachers
 -- ============================================================
-INSERT INTO courses (id, teacher_id, title, description, price, currency, status) VALUES
-    ('33333333-3333-4333-8333-000000000001', '11111111-1111-4111-8111-000000000001', 'Introduction to Go',           'Learn the basics of Go programming.',              49.99, 'USD', 'published'),
-    ('33333333-3333-4333-8333-000000000002', '11111111-1111-4111-8111-000000000001', 'Advanced Go Concurrency',      'Master goroutines and channels.',                   79.99, 'USD', 'published'),
-    ('33333333-3333-4333-8333-000000000003', '11111111-1111-4111-8111-000000000002', 'Fullstack React',              'Build modern web apps with React.',                 59.99, 'USD', 'published'),
-    ('33333333-3333-4333-8333-000000000004', '11111111-1111-4111-8111-000000000003', 'Data Science with Pandas',     'Data analysis and visualization in Python.',        89.99, 'USD', 'draft'),
-    ('33333333-3333-4333-8333-000000000005', '11111111-1111-4111-8111-000000000004', 'Kubernetes Mastery',          'Deploy and manage containers at scale.',            89.99, 'USD', 'published'),
-    ('33333333-3333-4333-8333-000000000006', '11111111-1111-4111-8111-000000000004', 'Legacy Jenkins Pipelines',     'Retired course on Jenkins CI/CD pipelines.',        19.99, 'USD', 'archived');
+INSERT INTO courses (id, teacher_id, title, description, subject, price, currency, status) VALUES
+    ('33333333-3333-4333-8333-000000000001', '11111111-1111-4111-8111-000000000001', 'Introduction to Go',           'Learn the basics of Go programming.',              'Programming',      49.99, 'USD', 'published'),
+    ('33333333-3333-4333-8333-000000000002', '11111111-1111-4111-8111-000000000001', 'Advanced Go Concurrency',      'Master goroutines and channels.',                   'Programming',      79.99, 'USD', 'published'),
+    ('33333333-3333-4333-8333-000000000003', '11111111-1111-4111-8111-000000000002', 'Fullstack React',              'Build modern web apps with React.',                 'Web Development',  59.99, 'USD', 'published'),
+    ('33333333-3333-4333-8333-000000000004', '11111111-1111-4111-8111-000000000003', 'Data Science with Pandas',     'Data analysis and visualization in Python.',        'Data Science',     89.99, 'USD', 'draft'),
+    ('33333333-3333-4333-8333-000000000005', '11111111-1111-4111-8111-000000000004', 'Kubernetes Mastery',          'Deploy and manage containers at scale.',            'DevOps',           89.99, 'USD', 'published'),
+    ('33333333-3333-4333-8333-000000000006', '11111111-1111-4111-8111-000000000004', 'Legacy Jenkins Pipelines',     'Retired course on Jenkins CI/CD pipelines.',        'DevOps',           19.99, 'USD', 'archived');
 
 -- ============================================================
 -- Lessons: 3 per active course, 2 for the draft, 1 for the archived one

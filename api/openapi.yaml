@@ -60,6 +60,11 @@ paths:
             type: string
           description: Course title/description keyword search
         - in: query
+          name: subject
+          schema:
+            type: string
+          description: Partial, case-insensitive match against the course subject (e.g. "program" matches "Programming")
+        - in: query
           name: min_price
           schema:
             type: number
@@ -69,6 +74,18 @@ paths:
           schema:
             type: number
           description: Upper bound (inclusive) for course price
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+            enum: [title, price, subject, created_at]
+            default: title
+        - in: query
+          name: sort_order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
         - in: query
           name: page
           schema:
@@ -283,6 +300,9 @@ components:
           type: string
         description:
           type: string
+        subject:
+          type: string
+          description: Subject area, e.g. "english", "programming", "physics"
         price:
           type: number
         currency:

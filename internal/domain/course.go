@@ -8,6 +8,7 @@ type Course struct {
 	TeacherID   string    `json:"teacher_id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
+	Subject     string    `json:"subject"`
 	Price       float64   `json:"price"`
 	Currency    string    `json:"currency"`
 	Status      string    `json:"status"`
@@ -15,6 +16,19 @@ type Course struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// CourseListParams bundles the catalog's search, filter, sort, and
+// pagination inputs so the repository signature doesn't keep growing.
+type CourseListParams struct {
+	Search    string
+	Subject   string
+	MinPrice  *float64
+	MaxPrice  *float64
+	SortBy    string
+	SortOrder string
+	Page      int
+	PageSize  int
+}
+
 type CatalogRepository interface {
-	GetCourses(search string, minPrice, maxPrice *float64, page, pageSize int) ([]Course, int, error)
+	GetCourses(params CourseListParams) ([]Course, int, error)
 }
