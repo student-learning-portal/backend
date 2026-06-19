@@ -6,6 +6,7 @@ import (
 
 	"github.com/student-learning-portal/backend/internal/database"
 	delivery "github.com/student-learning-portal/backend/internal/delivery/http"
+	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
 // Run is the main application assembly point.
@@ -14,8 +15,15 @@ func Run() {
 	// Initialize Database (Mocked for now)
 	database.InitDB()
 
-	// Initialize HTTP Router
-	router := delivery.NewRouter()
+	// Initialize Use Cases with seed data
+	catalogRepo := database.NewMockCatalogRepository()
+	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo)
+
+	// Initialize the HTTP handler and inject use cases
+	catalogHandler := delivery.NewCatalogHandler(catalogUseCase)
+
+	// Initialize HTTP Router and inject the handler
+	router := delivery.NewRouter(catalogHandler)
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)
