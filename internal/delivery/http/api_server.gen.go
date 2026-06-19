@@ -146,15 +146,28 @@ func (siw *ServerInterfaceWrapper) GetCatalogCourses(w http.ResponseWriter, r *h
 		return
 	}
 
-	// ------------- Optional query parameter "category" -------------
+	// ------------- Optional query parameter "min_price" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", r.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_price", r.URL.Query(), &params.MinPrice, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "category"})
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "min_price"})
 		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "category", Err: err})
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "min_price", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "max_price" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "max_price", r.URL.Query(), &params.MaxPrice, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "max_price"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "max_price", Err: err})
 		}
 		return
 	}

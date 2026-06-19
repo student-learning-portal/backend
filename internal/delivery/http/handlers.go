@@ -41,7 +41,18 @@ func (h *CatalogHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	// Extract query parameters
 	queryParams := r.URL.Query()
 	search := queryParams.Get("search")
-	category := queryParams.Get("category")
+
+	var minPrice, maxPrice *float64
+	if v := queryParams.Get("min_price"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			minPrice = &f
+		}
+	}
+	if v := queryParams.Get("max_price"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			maxPrice = &f
+		}
+	}
 
 	// Parse pagination values with defaults from openapi.yaml
 	page := 1
@@ -59,7 +70,7 @@ func (h *CatalogHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch filtered list from usecase layer
-	courses := h.catalogUseCase.ListCourses(search, category, page, pageSize)
+	courses := h.catalogUseCase.ListCourses(search, minPrice, maxPrice, page, pageSize)
 
 	// Respond with JSON
 	w.Header().Set("Content-Type", "application/json")

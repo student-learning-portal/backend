@@ -4,12 +4,35 @@
 package http
 
 import (
+	"time"
+
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
+
+// Defines values for CourseStatus.
+const (
+	Archived  CourseStatus = "archived"
+	Draft     CourseStatus = "draft"
+	Published CourseStatus = "published"
+)
+
+// Valid indicates whether the value is a known member of the CourseStatus enum.
+func (e CourseStatus) Valid() bool {
+	switch e {
+	case Archived:
+		return true
+	case Draft:
+		return true
+	case Published:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus.
 const (
@@ -49,12 +72,19 @@ func (e PostPurchaseWebhookJSONBodyStatus) Valid() bool {
 
 // Course defines model for Course.
 type Course struct {
-	Category    *string  `json:"category,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	Id          *string  `json:"id,omitempty"`
-	Price       *float32 `json:"price,omitempty"`
-	Title       *string  `json:"title,omitempty"`
+	CreatedAt   *time.Time          `json:"created_at,omitempty"`
+	Currency    *string             `json:"currency,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	Id          *openapi_types.UUID `json:"id,omitempty"`
+	Price       *float32            `json:"price,omitempty"`
+	Status      *CourseStatus       `json:"status,omitempty"`
+	TeacherId   *openapi_types.UUID `json:"teacher_id,omitempty"`
+	Title       *string             `json:"title,omitempty"`
+	UpdatedAt   *time.Time          `json:"updated_at,omitempty"`
 }
+
+// CourseStatus defines model for Course.Status.
+type CourseStatus string
 
 // LessonData defines model for LessonData.
 type LessonData struct {
@@ -83,10 +113,15 @@ type PostAuthLoginJSONBody struct {
 // GetCatalogCoursesParams defines parameters for GetCatalogCourses.
 type GetCatalogCoursesParams struct {
 	// Search Course title/description keyword search
-	Search   *string `form:"search,omitempty" json:"search,omitempty"`
-	Category *string `form:"category,omitempty" json:"category,omitempty"`
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int    `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// MinPrice Lower bound (inclusive) for course price
+	MinPrice *float32 `form:"min_price,omitempty" json:"min_price,omitempty"`
+
+	// MaxPrice Upper bound (inclusive) for course price
+	MaxPrice *float32 `form:"max_price,omitempty" json:"max_price,omitempty"`
+	Page     *int     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int     `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody defines parameters for PostPlayerCoursesCourseIdLessonsLessonIdProgress.

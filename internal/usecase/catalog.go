@@ -14,8 +14,8 @@ func NewCatalogUseCase(repo domain.CatalogRepository) *CatalogUseCase {
 }
 
 // ListCourses filters, searches, and paginates the course catalog.
-func (uc *CatalogUseCase) ListCourses(search, category string, page, pageSize int) []domain.Course {
-	courses, _, err := uc.repo.GetCourses(search, category, page, pageSize)
+func (uc *CatalogUseCase) ListCourses(search string, minPrice, maxPrice *float64, page, pageSize int) []domain.Course {
+	courses, _, err := uc.repo.GetCourses(search, minPrice, maxPrice, page, pageSize)
 	if err != nil {
 		return []domain.Course{}
 	}

@@ -60,9 +60,15 @@ paths:
             type: string
           description: Course title/description keyword search
         - in: query
-          name: category
+          name: min_price
           schema:
-            type: string
+            type: number
+          description: Lower bound (inclusive) for course price
+        - in: query
+          name: max_price
+          schema:
+            type: number
+          description: Upper bound (inclusive) for course price
         - in: query
           name: page
           schema:
@@ -269,14 +275,27 @@ components:
       properties:
         id:
           type: string
+          format: uuid
+        teacher_id:
+          type: string
+          format: uuid
         title:
           type: string
         description:
           type: string
-        category:
-          type: string
         price:
           type: number
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     LessonData:
       type: object
       properties:
