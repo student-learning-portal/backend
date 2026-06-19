@@ -8,12 +8,8 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Deploy to VM
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            cd ~/backend && git pull
-            cd ~/infra && docker compose up -d --build
+      - name: Pull latest changes
+        run: cd ~/backend && git pull
+
+      - name: Restart containers
+        run: cd ~/infra && docker compose up -d --build
