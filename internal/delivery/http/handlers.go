@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/student-learning-portal/backend/internal/database"
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
@@ -25,8 +26,12 @@ func HelloHandler(w http.ResponseWriter, r *http.Request) {
 func DBHealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Assuming DB is connected based on db.go mock logic
-	json.NewEncoder(w).Encode(map[string]string{"status": "connected (simulated)"})
+	if database.DB == nil || database.DB.Ping() != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
 }
 
 type CatalogHandler struct {

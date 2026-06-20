@@ -12,11 +12,11 @@ import (
 // Run is the main application assembly point.
 // It sets up dependencies, database connections, and starts the HTTP server.
 func Run() {
-	// Initialize Database (Mocked for now)
+	// Initialize Database
 	database.InitDB()
 
-	// Initialize Use Cases with seed data
-	catalogRepo := database.NewMockCatalogRepository()
+	// Initialize Use Cases backed by the database
+	catalogRepo := database.NewPostgresCatalogRepository(database.DB)
 	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo)
 
 	// Initialize the HTTP handler and inject use cases
