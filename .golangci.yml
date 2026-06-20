@@ -1,0 +1,140 @@
+version: "2"
+run:
+  modules-download-mode: readonly
+  timeout: 5m
+  tests: true
+linters:
+  default: none
+  enable:
+    # default ones
+    - errcheck # ensures error return values are checked
+    - govet # reports suspicious constructs and misuse of the std library
+    - ineffassign # finds ineffectual assignments to existing variables
+    # - unused # flags unused constants, variables, types, functions, and imports
+    - staticcheck # advanced correctness checks beyond govet
+
+    # additional ones
+    - gosec # Inspects AST for security problems (hardcoded creds, weak crypto, etc.)
+    - revive # Fast, extensible drop-in replacement for golint (style & conventions)
+    - misspell # Finds commonly misspelled English words in comments and strings
+    - wastedassign # detects assignments that are overwritten before use
+    - nilnil # flags returning nil error and nil value in multi-return funcs
+    - gocyclo # reports functions with high cyclomatic complexity
+    - goconst # suggests replacing repeated literals with constants
+    - gocritic # provides diagnostics for style, bugs, and performance issues
+    - nakedret # discourages naked returns in longer functions
+    - prealloc # suggests preallocating slices when capacity is known
+    - unconvert # removes unnecessary type conversions
+    - unparam # finds function parameters that are not used
+    - lll # enforces a maximum line length
+    - mnd # detects magic numbers that should be named constants
+    - iface # detects interface misuse patterns
+    - dupl # detects duplicate code blocks
+    - funlen # flags functions that are too long
+    - gocognit # flags functions with high cognitive complexity
+    - errorlint # enforces errors.Is/As for error comparisons and wrapping
+    - bodyclose # ensures http response bodies are properly closed
+    - contextcheck # Ensures context.Context is properly propagated and not replaced with context.Background or context.TODO
+
+  settings:
+    dupl:
+      threshold: 150
+    errcheck:
+      check-blank: false
+    govet:
+      enable:
+        - shadow
+    gocritic:
+      disabled-checks:
+        - exitAfterDefer
+      settings:
+        ifElseChain:
+          minThreshold: 4
+    funlen:
+      lines: 100
+      statements: 50
+    gocognit:
+      min-complexity: 20
+    gocyclo:
+      min-complexity: 15
+    nakedret:
+      max-func-lines: 50
+    lll:
+      line-length: 140
+    mnd:
+      checks:
+        - argument
+        - case
+        - condition
+        - operation
+        - return
+        - assign
+    goconst:
+      min-len: 2
+      min-occurrences: 5
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+          severity: warning
+        - name: blank-imports
+        - name: dot-imports
+        - name: error-return
+        - name: if-return
+        - name: increment-decrement
+        - name: argument-limit
+          arguments: [ 6 ]
+        - name: function-result-limit
+          arguments: [ 4 ]
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - errcheck
+          - dupl
+          - gosec
+          - funlen
+          - gocognit
+          - revive
+          - nilnil
+          - gocritic
+          - lll
+          - bodyclose
+      - path: (.+)\.go$
+        text: should have comment
+      - path: (.+)\.go$
+        text: comment on exported .* should be of the form
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - migrations$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofumpt
+  settings:
+    gofumpt:
+      extra-rules: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - test/
