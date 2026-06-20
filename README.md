@@ -41,12 +41,13 @@ docker run --rm -v "$(pwd)/migrations:/migrations" --network infra_default \
 ```
 Note: On Windows with Git Bash, prefix the command with `MSYS_NO_PATHCONV=1` if you get a "no such file or directory" error on `/migrations` — Git Bash otherwise mangles the Unix-style path.
 
-Note: On Windows with PowerShell, the `\` line continuations and `$(pwd)` above are bash syntax and won't work. Run it as a single line from the `backend/` directory instead:
+Note: On Windows with PowerShell, run it as a single line from the `backend/` directory:
 ```powershell
 docker run --rm -v "${PWD}\migrations:/migrations" --network infra_default migrate/migrate -path=/migrations -database "postgres://user:password@postgres:5432/database_name?sslmode=disable" up
 ```
 
-Replace `user`/`password`/`database_name` with the values from your `infra/.env` (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`), and the network name (`infra_default`) if your Compose project has a custom name. Useful variants:
+!!!IMPORTANT: Replace `user`/`password`/`database_name` with the values from your `infra/.env` (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`), and the network name (`infra_default`) if your Compose project has a custom name. 
+Useful variants:
 ```bash
 # roll back the last migration
 docker run --rm -v "$(pwd)/migrations:/migrations" --network infra_default \
