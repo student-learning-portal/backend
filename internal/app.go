@@ -17,10 +17,8 @@ const tokenTTL = 24 * time.Hour
 // Run is the main application assembly point.
 // It sets up dependencies, database connections, and starts the HTTP server.
 func Run() {
-	// Initialize Database
 	database.InitDB()
 
-	// Initialize Use Cases backed by the database
 	catalogRepo := database.NewPostgresCatalogRepository(database.DB)
 	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo)
 
@@ -33,12 +31,18 @@ func Run() {
 	userRepo := database.NewPostgresUserRepository(database.DB)
 	authUseCase := usecase.NewAuthUseCase(userRepo, tokens)
 
-	// Initialize the HTTP handlers and inject use cases
+	entitlementRepo := database.NewPostgresEntitlementRepository(database.DB)
+	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo)
+
+	lessonRepo := database.NewPostgresLessonRepository(database.DB)
+	playerUseCase := usecase.NewPlayerUseCase(lessonRepo)
+
 	catalogHandler := delivery.NewCatalogHandler(catalogUseCase)
 	authHandler := delivery.NewAuthHandler(authUseCase)
+	purchaseHandler := delivery.NewPurchaseHandler(paymentUseCase)
+	playerHandler := delivery.NewPlayerHandler(playerUseCase)
 
-	// Initialize HTTP Router and inject the handlers
-	router := delivery.NewRouter(catalogHandler, authHandler, tokens)
+	router := delivery.NewRouter(catalogHandler, authHandler, purchaseHandler, playerHandler, tokens, entitlementRepo)
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)

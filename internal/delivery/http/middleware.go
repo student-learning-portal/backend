@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/student-learning-portal/backend/internal/domain"
 )
 
@@ -37,6 +39,52 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 
 			ctx := context.WithValue(r.Context(), claimsContextKey, claims)
 			next(w, r.WithContext(ctx))
+		}
+	}
+}
+
+// RequireEntitlement checks that the authenticated user holds an active access grant
+// for the course in the {course_id} path parameter, blocking with 403 otherwise.
+// Every decision is written to access_check_log. Must be chained after RequireAuth.
+func RequireEntitlement(entRepo domain.EntitlementRepository) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := claimsFromContext(r.Context())
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "missing authentication")
+				return
+			}
+
+			courseID := r.PathValue("course_id")
+			lessonID := r.PathValue("lesson_id")
+
+			allowed, err := entRepo.HasActiveGrant(r.Context(), claims.UserID, courseID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "access check failed")
+				return
+			}
+
+			decision, denyReason := "allow", ""
+			if !allowed {
+				decision, denyReason = "deny", "no_active_grant"
+			}
+
+			_ = entRepo.LogAccessCheck(r.Context(), domain.AccessCheckLog{
+				EventID:    uuid.NewString(),
+				ActorID:    claims.UserID,
+				CourseID:   courseID,
+				LessonID:   lessonID,
+				Decision:   decision,
+				DenyReason: denyReason,
+				CheckedAt:  time.Now(),
+			})
+
+			if !allowed {
+				writeError(w, http.StatusForbidden, "access denied: no active entitlement")
+				return
+			}
+
+			next(w, r)
 		}
 	}
 }
