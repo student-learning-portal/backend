@@ -135,3 +135,8 @@ To run tests across all internal packages:
 ```bash
 go test ./... -v
 ```
+
+## Linting
+```bash
+golangci-lint run ./...
+```
