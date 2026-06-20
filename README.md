@@ -122,6 +122,14 @@ Requires the bearer token returned by register/login.
 curl -X GET http://localhost:8080/api/v1/auth/me -H "Authorization: Bearer <jwt>"
 ```
 
+## User Protection
+
+- **Passwords** are hashed with bcrypt (`golang.org/x/crypto/bcrypt`, default cost) before storage — the `users.password_hash` column never holds plaintext, and only the hash is ever compared on login.
+- **Sessions** are stateless HS256 JWTs (`github.com/golang-jwt/jwt/v5`) signed with `JWT_SECRET`, valid for 24 hours. The server refuses to boot without `JWT_SECRET` set.
+- **Protected routes** go through the `RequireAuth` middleware (`internal/delivery/http/middleware.go`), which rejects requests with a missing, malformed, or expired bearer token before they reach the handler.
+- **Input validation** on registration enforces a real email format, an 8-character password minimum, and a known role (`student`/`teacher`); duplicate emails are rejected with `409 Conflict` instead of leaking which check failed.
+- **Login failures** (unknown email or wrong password) both return the same `401 Unauthorized` with a generic message, so the API doesn't reveal whether an email is registered.
+
 ## Running Unit Tests
 To run tests across all internal packages:
 ```bash
