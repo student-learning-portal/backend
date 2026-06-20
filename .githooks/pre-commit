@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+echo "==> [pre-commit] Running goimports..."
+if ! command -v goimports > /dev/null 2>&1; then
+  echo "goimports not found. Install with: go install golang.org/x/tools/cmd/goimports@latest"
+  exit 1
+fi
+goimports -w $(git diff --cached --name-only --diff-filter=ACM | grep '\.go$') 2>/dev/null || true
+git add $(git diff --cached --name-only --diff-filter=ACM | grep '\.go$') 2>/dev/null || true
+
+echo "==> [pre-commit] Running golangci-lint..."
+if ! command -v golangci-lint > /dev/null 2>&1; then
+  echo "golangci-lint not found. Install from https://golangci-lint.run/usage/install/"
+  exit 1
+fi
+golangci-lint run --new-from-rev=HEAD
+
+echo "==> [pre-commit] Running govulncheck..."
+if ! command -v govulncheck > /dev/null 2>&1; then
+  echo "govulncheck not found. Install with: go install golang.org/x/vuln/cmd/govulncheck@latest"
+  exit 1
+fi
+govulncheck ./...
+
+echo "==> [pre-commit] Running go mod tidy..."
+go mod tidy
+git add go.mod go.sum
+
+echo "==> [pre-commit] All checks passed."
