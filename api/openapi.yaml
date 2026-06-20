@@ -13,7 +13,7 @@ paths:
   # ---------------------------------------------------------
   /auth/register:
     post:
-      summary: Create a new student or teacher account (no email confirmation required)
+      summary: Create a new student or teacher account
       tags:
         - Auth
       requestBody:
