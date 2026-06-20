@@ -3,7 +3,7 @@
 This is the backend service for the Student Learning Portal, built with Go, OpenAPI, Swagger.
 
 ## Prerequisites
-- [Go](https://golang.org/doc/install) (1.24+ recommended)
+- [Go](https://golang.org/doc/install) (1.25+ recommended)
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose (for running the PostgreSQL database)
 - [golang-migrate](https://github.com/golang-migrate/migrate) (for running database migrations; no local install needed — used via Docker)
 - [sqlc](https://sqlc.dev/) (optional, for code generation from SQL)
@@ -22,7 +22,9 @@ Define your environment variables. A template configuration can go into `configs
 ```env
 PORT=8080
 DATABASE_URL=postgres://user:password@localhost:5432/portal?sslmode=disable
+JWT_SECRET=a-long-random-string
 ```
+`JWT_SECRET` signs and verifies auth tokens; the server refuses to start without it. The Compose stack reads it from `infra/.env`.
 
 ### 2. Start the Database (Docker)
 The PostgreSQL database (and the rest of the stack) is defined in `../infra/docker-compose.yml`. From the `infra/` directory:
@@ -92,7 +94,32 @@ curl -X GET http://localhost:8080/api/v1/health/db
 ```
 *Expected Output:*
 ```json
-{"status":"connected (simulated)"}
+{"status":"connected"}
+```
+
+**3. Register**
+Creates a new account (no email confirmation required) and returns a bearer token.
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"password123","full_name":"Alice Johnson","role":"student"}'
+```
+*Expected Output:*
+```json
+{"token":"<jwt>","user":{"id":"...","email":"alice@example.com","full_name":"Alice Johnson","role":"student"}}
+```
+
+**4. Login**
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"password123"}'
+```
+
+**5. Current User**
+Requires the bearer token returned by register/login.
+```bash
+curl -X GET http://localhost:8080/api/v1/auth/me -H "Authorization: Bearer <jwt>"
 ```
 
 ## Running Unit Tests
