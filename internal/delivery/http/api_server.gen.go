@@ -25,12 +25,21 @@ type ServerInterface interface {
 	// Login via email/password
 	// (POST /auth/login)
 	PostAuthLogin(w http.ResponseWriter, r *http.Request)
+	// Get the currently authenticated user's profile
+	// (GET /auth/me)
+	GetAuthMe(w http.ResponseWriter, r *http.Request)
+	// Create a new student or teacher account
+	// (POST /auth/register)
+	PostAuthRegister(w http.ResponseWriter, r *http.Request)
 	// Browsable catalog of courses with simple filtering
 	// (GET /catalog/courses)
 	GetCatalogCourses(w http.ResponseWriter, r *http.Request, params GetCatalogCoursesParams)
 	// Request to play a lesson (Enforces Access/Entitlement)
 	// (GET /player/courses/{course_id}/lessons/{lesson_id})
 	GetPlayerCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Fetch the learner's saved resume point for a lesson
+	// (GET /player/courses/{course_id}/lessons/{lesson_id}/progress)
+	GetPlayerCoursesCourseIdLessonsLessonIdProgress(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
 	// Saves current play progress to DB
 	// (POST /player/courses/{course_id}/lessons/{lesson_id}/progress)
 	PostPlayerCoursesCourseIdLessonsLessonIdProgress(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
@@ -115,6 +124,40 @@ func (siw *ServerInterfaceWrapper) PostAuthLogin(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAuthMe operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthRegister operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthRegister(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthRegister(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -280,6 +323,47 @@ func (siw *ServerInterfaceWrapper) GetPlayerCoursesCourseIdLessonsLessonId(w htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPlayerCoursesCourseIdLessonsLessonId(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPlayerCoursesCourseIdLessonsLessonIdProgress operation middleware
+func (siw *ServerInterfaceWrapper) GetPlayerCoursesCourseIdLessonsLessonIdProgress(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlayerCoursesCourseIdLessonsLessonIdProgress(w, r, courseId, lessonId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -487,8 +571,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/analytics/student/me", wrapper.GetAnalyticsStudentMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/analytics/teacher/dashboard", wrapper.GetAnalyticsTeacherDashboard)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.PostAuthLogin)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetAuthMe)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/register", wrapper.PostAuthRegister)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses", wrapper.GetCatalogCourses)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}", wrapper.GetPlayerCoursesCourseIdLessonsLessonId)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.GetPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.PostPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/checkout", wrapper.PostPurchaseCheckout)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/webhook", wrapper.PostPurchaseWebhook)

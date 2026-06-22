@@ -122,6 +122,35 @@ Requires the bearer token returned by register/login.
 curl -X GET http://localhost:8080/api/v1/auth/me -H "Authorization: Bearer <jwt>"
 ```
 
+**6. Player: lesson content (entitled users only)**
+Returns the lesson's media URL, attachments, and the caller's last saved resume point.
+The `RequireEntitlement` middleware first checks the caller holds an active access
+grant for the course (seed a grant via `/purchase/checkout`), responding `403` otherwise.
+```bash
+curl -X GET "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<lesson_id>" \
+  -H "Authorization: Bearer <jwt>"
+```
+*Example output:*
+```json
+{"lesson_id":"...","title":"Go Syntax Basics","content_url":"https://cdn.example.com/...","duration_seconds":347,"materials":[...],"last_progress_seconds":120,"percent_complete":35.5}
+```
+
+**7. Player: save progress**
+Persists the caller's resume point for a lesson (upsert — re-saving overwrites in place).
+`percent_complete` is derived server-side from the media duration (100 once `completed`).
+```bash
+curl -X POST "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<lesson_id>/progress" \
+  -H "Authorization: Bearer <jwt>" -H "Content-Type: application/json" \
+  -d '{"progress_seconds":120,"completed":false}'
+```
+
+**8. Player: resume progress**
+Returns the saved resume point so playback can continue after re-login (`404` if never started).
+```bash
+curl -X GET "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<lesson_id>/progress" \
+  -H "Authorization: Bearer <jwt>"
+```
+
 ## User Protection
 
 - **Passwords** are hashed with bcrypt (`golang.org/x/crypto/bcrypt`, default cost) before storage — the `users.password_hash` column never holds plaintext, and only the hash is ever compared on login.
