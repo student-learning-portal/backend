@@ -270,14 +270,57 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - progress_seconds
               properties:
                 progress_seconds:
                   type: integer
+                  minimum: 0
+                  description: Current playback offset, in seconds.
                 completed:
                   type: boolean
+                  description: Marks the lesson finished (forces percent_complete to 100).
       responses:
         '200':
-          description: Progress saved successfully
+          description: Progress saved. Returns the stored resume point.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Progress'
+        '400':
+          description: Invalid progress payload
+        '403':
+          description: Access denied (No active entitlement)
+        '404':
+          description: Lesson not found in this course
+    get:
+      summary: Fetch the learner's saved resume point for a lesson
+      tags:
+        - Player
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The learner's saved resume point
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Progress'
+        '403':
+          description: Access denied (No active entitlement)
+        '404':
+          description: No saved progress yet
 
   # ---------------------------------------------------------
   # ANALYTICS (TEACHER & STUDENT)
@@ -401,8 +444,53 @@ components:
       properties:
         lesson_id:
           type: string
+        course_id:
+          type: string
+        title:
+          type: string
+        lesson_type:
+          type: string
+          enum: [video, text, quiz, mixed]
+        position:
+          type: integer
         content_url:
           type: string
           format: uri
+          description: Primary playable media URL for the lesson ("" when the lesson has no media).
+        duration_seconds:
+          type: integer
+          description: Length of the primary media in seconds (0 when unknown).
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Material'
         last_progress_seconds:
           type: integer
+          description: The learner's last saved playback offset (0 if never started).
+        percent_complete:
+          type: number
+          description: The learner's saved completion percentage (0–100).
+    Material:
+      type: object
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        type:
+          type: string
+    Progress:
+      type: object
+      properties:
+        lesson_id:
+          type: string
+        progress_seconds:
+          type: integer
+        percent_complete:
+          type: number
+        completed:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time

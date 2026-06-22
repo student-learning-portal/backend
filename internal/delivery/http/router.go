@@ -36,6 +36,14 @@ func NewRouter(
 		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}",
 		auth(guard(playerHandler.GetLesson)),
 	)
+	mux.HandleFunc(
+		"POST /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
+		auth(guard(playerHandler.SaveProgress)),
+	)
+	mux.HandleFunc(
+		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
+		auth(guard(playerHandler.GetProgress)),
+	)
 
 	return mux
 }

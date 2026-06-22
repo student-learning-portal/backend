@@ -35,7 +35,8 @@ func Run() {
 	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo)
 
 	lessonRepo := database.NewPostgresLessonRepository(database.DB)
-	playerUseCase := usecase.NewPlayerUseCase(lessonRepo)
+	progressRepo := database.NewPostgresProgressRepository(database.DB)
+	playerUseCase := usecase.NewPlayerUseCase(lessonRepo, progressRepo)
 
 	catalogHandler := delivery.NewCatalogHandler(catalogUseCase)
 	authHandler := delivery.NewAuthHandler(authUseCase)

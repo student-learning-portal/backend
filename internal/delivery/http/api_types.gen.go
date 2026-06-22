@@ -34,6 +34,48 @@ func (e CourseStatus) Valid() bool {
 	}
 }
 
+// Defines values for LessonDataLessonType.
+const (
+	Mixed LessonDataLessonType = "mixed"
+	Quiz  LessonDataLessonType = "quiz"
+	Text  LessonDataLessonType = "text"
+	Video LessonDataLessonType = "video"
+)
+
+// Valid indicates whether the value is a known member of the LessonDataLessonType enum.
+func (e LessonDataLessonType) Valid() bool {
+	switch e {
+	case Mixed:
+		return true
+	case Quiz:
+		return true
+	case Text:
+		return true
+	case Video:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserRole.
+const (
+	UserRoleStudent UserRole = "student"
+	UserRoleTeacher UserRole = "teacher"
+)
+
+// Valid indicates whether the value is a known member of the UserRole enum.
+func (e UserRole) Valid() bool {
+	switch e {
+	case UserRoleStudent:
+		return true
+	case UserRoleTeacher:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus.
 const (
 	ATRISK  GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus = "AT_RISK"
@@ -46,6 +88,24 @@ func (e GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus) Valid() b
 	case ATRISK:
 		return true
 	case ONTRACK:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostAuthRegisterJSONBodyRole.
+const (
+	PostAuthRegisterJSONBodyRoleStudent PostAuthRegisterJSONBodyRole = "student"
+	PostAuthRegisterJSONBodyRoleTeacher PostAuthRegisterJSONBodyRole = "teacher"
+)
+
+// Valid indicates whether the value is a known member of the PostAuthRegisterJSONBodyRole enum.
+func (e PostAuthRegisterJSONBodyRole) Valid() bool {
+	switch e {
+	case PostAuthRegisterJSONBodyRoleStudent:
+		return true
+	case PostAuthRegisterJSONBodyRoleTeacher:
 		return true
 	default:
 		return false
@@ -112,6 +172,12 @@ func (e PostPurchaseWebhookJSONBodyStatus) Valid() bool {
 	}
 }
 
+// AuthResponse defines model for AuthResponse.
+type AuthResponse struct {
+	Token *string `json:"token,omitempty"`
+	User  *User   `json:"user,omitempty"`
+}
+
 // Course defines model for Course.
 type Course struct {
 	CreatedAt   *time.Time          `json:"created_at,omitempty"`
@@ -133,10 +199,54 @@ type CourseStatus string
 
 // LessonData defines model for LessonData.
 type LessonData struct {
-	ContentUrl          *string `json:"content_url,omitempty"`
-	LastProgressSeconds *int    `json:"last_progress_seconds,omitempty"`
-	LessonId            *string `json:"lesson_id,omitempty"`
+	// ContentUrl Primary playable media URL for the lesson ("" when the lesson has no media).
+	ContentUrl *string `json:"content_url,omitempty"`
+	CourseId   *string `json:"course_id,omitempty"`
+
+	// DurationSeconds Length of the primary media in seconds (0 when unknown).
+	DurationSeconds *int `json:"duration_seconds,omitempty"`
+
+	// LastProgressSeconds The learner's last saved playback offset (0 if never started).
+	LastProgressSeconds *int                  `json:"last_progress_seconds,omitempty"`
+	LessonId            *string               `json:"lesson_id,omitempty"`
+	LessonType          *LessonDataLessonType `json:"lesson_type,omitempty"`
+	Materials           *[]Material           `json:"materials,omitempty"`
+
+	// PercentComplete The learner's saved completion percentage (0–100).
+	PercentComplete *float32 `json:"percent_complete,omitempty"`
+	Position        *int     `json:"position,omitempty"`
+	Title           *string  `json:"title,omitempty"`
 }
+
+// LessonDataLessonType defines model for LessonData.LessonType.
+type LessonDataLessonType string
+
+// Material defines model for Material.
+type Material struct {
+	Title *string `json:"title,omitempty"`
+	Type  *string `json:"type,omitempty"`
+	Url   *string `json:"url,omitempty"`
+}
+
+// Progress defines model for Progress.
+type Progress struct {
+	Completed       *bool      `json:"completed,omitempty"`
+	LessonId        *string    `json:"lesson_id,omitempty"`
+	PercentComplete *float32   `json:"percent_complete,omitempty"`
+	ProgressSeconds *int       `json:"progress_seconds,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+}
+
+// User defines model for User.
+type User struct {
+	Email    *openapi_types.Email `json:"email,omitempty"`
+	FullName *string              `json:"full_name,omitempty"`
+	Id       *openapi_types.UUID  `json:"id,omitempty"`
+	Role     *UserRole            `json:"role,omitempty"`
+}
+
+// UserRole defines model for User.Role.
+type UserRole string
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
@@ -154,6 +264,19 @@ type PostAuthLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
 	Password string              `json:"password"`
 }
+
+// PostAuthRegisterJSONBody defines parameters for PostAuthRegister.
+type PostAuthRegisterJSONBody struct {
+	// AnonymousId Links pre-auth anonymous activity to this account, if any.
+	AnonymousId *openapi_types.UUID          `json:"anonymous_id,omitempty"`
+	Email       openapi_types.Email          `json:"email"`
+	FullName    string                       `json:"full_name"`
+	Password    string                       `json:"password"`
+	Role        PostAuthRegisterJSONBodyRole `json:"role"`
+}
+
+// PostAuthRegisterJSONBodyRole defines parameters for PostAuthRegister.
+type PostAuthRegisterJSONBodyRole string
 
 // GetCatalogCoursesParams defines parameters for GetCatalogCourses.
 type GetCatalogCoursesParams struct {
@@ -182,8 +305,11 @@ type GetCatalogCoursesParamsSortOrder string
 
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody defines parameters for PostPlayerCoursesCourseIdLessonsLessonIdProgress.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody struct {
-	Completed       *bool `json:"completed,omitempty"`
-	ProgressSeconds *int  `json:"progress_seconds,omitempty"`
+	// Completed Marks the lesson finished (forces percent_complete to 100).
+	Completed *bool `json:"completed,omitempty"`
+
+	// ProgressSeconds Current playback offset, in seconds.
+	ProgressSeconds int `json:"progress_seconds"`
 }
 
 // PostPurchaseCheckoutJSONBody defines parameters for PostPurchaseCheckout.
@@ -204,6 +330,9 @@ type PostPurchaseWebhookJSONBodyStatus string
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
+
+// PostAuthRegisterJSONRequestBody defines body for PostAuthRegister for application/json ContentType.
+type PostAuthRegisterJSONRequestBody PostAuthRegisterJSONBody
 
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONRequestBody defines body for PostPlayerCoursesCourseIdLessonsLessonIdProgress for application/json ContentType.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONRequestBody PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody
