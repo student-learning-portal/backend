@@ -46,6 +46,9 @@ type ServerInterface interface {
 	// Initiate mock sandbox purchase for a course
 	// (POST /purchase/checkout)
 	PostPurchaseCheckout(w http.ResponseWriter, r *http.Request)
+	// Return a purchased course and refund the full amount to the buyer's virtual wallet
+	// (POST /purchase/refund)
+	PostPurchaseRefund(w http.ResponseWriter, r *http.Request)
 	// Idempotent webhook entrypoint (Mocks payment success or refund/revocation)
 	// (POST /purchase/webhook)
 	PostPurchaseWebhook(w http.ResponseWriter, r *http.Request)
@@ -434,6 +437,26 @@ func (siw *ServerInterfaceWrapper) PostPurchaseCheckout(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// PostPurchaseRefund operation middleware
+func (siw *ServerInterfaceWrapper) PostPurchaseRefund(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostPurchaseRefund(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostPurchaseWebhook operation middleware
 func (siw *ServerInterfaceWrapper) PostPurchaseWebhook(w http.ResponseWriter, r *http.Request) {
 
@@ -578,6 +601,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.GetPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.PostPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/checkout", wrapper.PostPurchaseCheckout)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/refund", wrapper.PostPurchaseRefund)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/webhook", wrapper.PostPurchaseWebhook)
 
 	return m

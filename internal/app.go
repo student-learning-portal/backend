@@ -42,7 +42,7 @@ func Run() {
 	authUseCase := usecase.NewAuthUseCase(userRepo, tokens)
 
 	entitlementRepo := database.NewPostgresEntitlementRepository(database.DB)
-	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo)
+	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo)
 
 	lessonRepo := database.NewPostgresLessonRepository(database.DB)
 	progressRepo := database.NewPostgresProgressRepository(database.DB)

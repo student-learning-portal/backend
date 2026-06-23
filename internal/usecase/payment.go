@@ -11,28 +11,53 @@ import (
 
 type PaymentUseCase struct {
 	entitlements domain.EntitlementRepository
+	courses      domain.CatalogRepository
+	users        domain.UserRepository
 }
 
-func NewPaymentUseCase(entitlements domain.EntitlementRepository) *PaymentUseCase {
-	return &PaymentUseCase{entitlements: entitlements}
+func NewPaymentUseCase(entitlements domain.EntitlementRepository, courses domain.CatalogRepository, users domain.UserRepository) *PaymentUseCase {
+	return &PaymentUseCase{entitlements: entitlements, courses: courses, users: users}
 }
 
-// Checkout creates a sandbox payment (immediately succeeded) and grants course access.
-func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string) (domain.Payment, error) {
+// CheckoutResult bundles the settled payment with the mock payment session
+// details and the buyer's updated wallet balance.
+type CheckoutResult struct {
+	Payment          domain.Payment
+	Balance          float64
+	PaymentSessionID string
+	RedirectURL      string
+}
+
+// Checkout creates a sandbox order for a course: it charges the course price
+// against the buyer's virtual wallet, immediately settles the payment, grants
+// course access, and returns a mock payment session/redirect (no real money
+// or external gateway is involved).
+func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string) (CheckoutResult, error) {
+	course, err := uc.courses.GetByID(ctx, courseID)
+	if err != nil {
+		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
+	}
+
+	balance, err := uc.users.DeductBalance(ctx, actorID, course.Price)
+	if err != nil {
+		return CheckoutResult{}, err
+	}
+
 	now := time.Now()
 	payment := domain.Payment{
 		TxnID:     uuid.NewString(),
 		CartID:    uuid.NewString(),
 		ActorID:   actorID,
 		CourseID:  courseID,
-		Amount:    0,
-		Currency:  "USD",
+		Amount:    course.Price,
+		Currency:  course.Currency,
 		Status:    "succeeded",
 		Sandbox:   true,
 		CreatedAt: now,
 	}
 	if err := uc.entitlements.CreatePayment(ctx, payment); err != nil {
-		return domain.Payment{}, fmt.Errorf("checkout: %w", err)
+		uc.refund(ctx, actorID, course.Price)
+		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
 	}
 	grant := domain.AccessGrant{
 		GrantID:   uuid.NewString(),
@@ -42,9 +67,54 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 		GrantedAt: now,
 	}
 	if err := uc.entitlements.CreateGrant(ctx, grant); err != nil {
-		return domain.Payment{}, fmt.Errorf("checkout: grant: %w", err)
+		uc.refund(ctx, actorID, course.Price)
+		return CheckoutResult{}, fmt.Errorf("checkout: grant: %w", err)
 	}
-	return payment, nil
+
+	return CheckoutResult{
+		Payment:          payment,
+		Balance:          balance,
+		PaymentSessionID: "sandbox_" + payment.TxnID,
+		RedirectURL:      "/sandbox/payments/" + payment.TxnID,
+	}, nil
+}
+
+// refund best-effort credits the buyer back when settling the order fails
+// after their wallet was already charged.
+func (uc *PaymentUseCase) refund(ctx context.Context, actorID string, amount float64) {
+	_, _ = uc.users.CreditBalance(ctx, actorID, amount)
+}
+
+// RefundResult bundles the reversed payment with the buyer's updated wallet balance.
+type RefundResult struct {
+	Payment domain.Payment
+	Balance float64
+}
+
+// Refund returns a purchased course: it revokes the buyer's access grant,
+// marks the sandbox payment as refunded, and credits the full amount back to
+// their virtual wallet.
+func (uc *PaymentUseCase) Refund(ctx context.Context, actorID, courseID string) (RefundResult, error) {
+	grant, err := uc.entitlements.GetActiveGrant(ctx, actorID, courseID)
+	if err != nil {
+		return RefundResult{}, fmt.Errorf("refund: %w", err)
+	}
+	payment, err := uc.entitlements.GetPayment(ctx, grant.TxnID)
+	if err != nil {
+		return RefundResult{}, fmt.Errorf("refund: %w", err)
+	}
+	if err := uc.entitlements.UpdatePaymentStatus(ctx, grant.TxnID, "refunded"); err != nil {
+		return RefundResult{}, fmt.Errorf("refund: %w", err)
+	}
+	if err := uc.entitlements.RevokeGrant(ctx, grant.TxnID, "refund"); err != nil {
+		return RefundResult{}, fmt.Errorf("refund: %w", err)
+	}
+	balance, err := uc.users.CreditBalance(ctx, actorID, payment.Amount)
+	if err != nil {
+		return RefundResult{}, fmt.Errorf("refund: credit: %w", err)
+	}
+	payment.Status = "refunded"
+	return RefundResult{Payment: payment, Balance: balance}, nil
 }
 
 // ProcessWebhook handles idempotent payment gateway callbacks (SUCCESS or REFUNDED).
@@ -75,11 +145,18 @@ func (uc *PaymentUseCase) ProcessWebhook(ctx context.Context, txnID, status, act
 		return nil
 
 	case "REFUNDED":
+		payment, err := uc.entitlements.GetPayment(ctx, txnID)
+		if err != nil {
+			return fmt.Errorf("webhook refund: %w", err)
+		}
 		if err := uc.entitlements.UpdatePaymentStatus(ctx, txnID, "refunded"); err != nil {
 			return fmt.Errorf("webhook refund: %w", err)
 		}
 		if err := uc.entitlements.RevokeGrant(ctx, txnID, "refund"); err != nil {
 			return fmt.Errorf("webhook revoke: %w", err)
+		}
+		if _, err := uc.users.CreditBalance(ctx, payment.ActorID, payment.Amount); err != nil {
+			return fmt.Errorf("webhook credit: %w", err)
 		}
 		return nil
 

@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/student-learning-portal/backend/internal/domain"
@@ -22,8 +23,13 @@ type checkoutRequest struct {
 }
 
 type checkoutResponse struct {
-	TransactionID string `json:"transaction_id"`
-	Status        string `json:"status"`
+	TransactionID    string  `json:"transaction_id"`
+	Status           string  `json:"status"`
+	Amount           float64 `json:"amount"`
+	Currency         string  `json:"currency"`
+	Balance          float64 `json:"balance"`
+	PaymentSessionID string  `json:"payment_session_id"`
+	RedirectURL      string  `json:"redirect_url"`
 }
 
 // Checkout handles POST /api/v1/purchase/checkout
@@ -48,11 +54,21 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		"course_id": req.CourseID,
 	})
 
-	payment, err := h.paymentUseCase.Checkout(r.Context(), claims.UserID, req.CourseID)
+	result, err := h.paymentUseCase.Checkout(r.Context(), claims.UserID, req.CourseID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "checkout failed")
+		switch {
+		case errors.Is(err, domain.ErrCourseNotFound):
+			writeError(w, http.StatusNotFound, "course not found")
+		case errors.Is(err, domain.ErrInsufficientFunds):
+			writeError(w, http.StatusPaymentRequired, "insufficient wallet balance")
+		case errors.Is(err, domain.ErrUserNotFound):
+			writeError(w, http.StatusUnauthorized, "user not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "checkout failed")
+		}
 		return
 	}
+	payment := result.Payment
 
 	// Sandbox checkout settles immediately and opens access (see PaymentUseCase),
 	// so the payment-cleared and access-opened events fire together here.
@@ -71,8 +87,78 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, checkoutResponse{
+		TransactionID:    payment.TxnID,
+		Status:           payment.Status,
+		Amount:           payment.Amount,
+		Currency:         payment.Currency,
+		Balance:          result.Balance,
+		PaymentSessionID: result.PaymentSessionID,
+		RedirectURL:      result.RedirectURL,
+	})
+}
+
+type refundRequest struct {
+	CourseID string `json:"course_id"`
+}
+
+type refundResponse struct {
+	TransactionID string  `json:"transaction_id"`
+	Status        string  `json:"status"`
+	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
+	Balance       float64 `json:"balance"`
+}
+
+// Refund handles POST /api/v1/purchase/refund
+func (h *PurchaseHandler) Refund(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication")
+		return
+	}
+
+	var req refundRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.CourseID == "" {
+		writeError(w, http.StatusBadRequest, "course_id is required")
+		return
+	}
+
+	result, err := h.paymentUseCase.Refund(r.Context(), claims.UserID, req.CourseID)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrGrantNotFound):
+			writeError(w, http.StatusNotFound, "no active purchase found for this course")
+		case errors.Is(err, domain.ErrPaymentNotFound):
+			writeError(w, http.StatusNotFound, "payment not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "refund failed")
+		}
+		return
+	}
+	payment := result.Payment
+
+	h.analytics.Record(r.Context(), domain.EventAccessRefundCompleted, domain.PIINone, map[string]any{
+		"course_id": payment.CourseID,
+		"txn_id":    payment.TxnID,
+		"amount":    payment.Amount,
+		"currency":  payment.Currency,
+	})
+	h.analytics.Record(r.Context(), domain.EventAccessRevoked, domain.PIINone, map[string]any{
+		"course_id": payment.CourseID,
+		"txn_id":    payment.TxnID,
+		"reason":    "refund",
+	})
+
+	writeJSON(w, http.StatusOK, refundResponse{
 		TransactionID: payment.TxnID,
 		Status:        payment.Status,
+		Amount:        payment.Amount,
+		Currency:      payment.Currency,
+		Balance:       result.Balance,
 	})
 }
 

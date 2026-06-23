@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -28,12 +29,18 @@ type User struct {
 	AnonymousID string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+
+	// Balance is the user's sandbox wallet balance (virtual money, no real
+	// funds). New accounts start with a default grant so they can exercise
+	// the purchase flow.
+	Balance float64
 }
 
 var (
-	ErrUserNotFound = errors.New("user not found")
-	ErrEmailTaken   = errors.New("email already registered")
-	ErrInvalidLogin = errors.New("invalid email or password")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrEmailTaken        = errors.New("email already registered")
+	ErrInvalidLogin      = errors.New("invalid email or password")
+	ErrInsufficientFunds = errors.New("insufficient wallet balance")
 )
 
 // UserRepository persists and retrieves user accounts.
@@ -41,4 +48,12 @@ type UserRepository interface {
 	Create(user User) (User, error)
 	GetByEmail(email string) (User, error)
 	GetByID(id string) (User, error)
+
+	// DeductBalance atomically subtracts amount from the user's wallet and
+	// returns the resulting balance. It returns ErrInsufficientFunds if the
+	// balance would go negative.
+	DeductBalance(ctx context.Context, userID string, amount float64) (float64, error)
+	// CreditBalance atomically adds amount to the user's wallet (e.g. on
+	// refund) and returns the resulting balance.
+	CreditBalance(ctx context.Context, userID string, amount float64) (float64, error)
 }

@@ -100,6 +100,25 @@ func (r *PostgresEntitlementRepository) HasActiveGrant(ctx context.Context, acto
 	return exists, nil
 }
 
+func (r *PostgresEntitlementRepository) GetActiveGrant(ctx context.Context, actorID, courseID string) (domain.AccessGrant, error) {
+	var g domain.AccessGrant
+	err := r.db.QueryRowContext(ctx,
+		`SELECT grant_id, actor_id, course_id, txn_id, granted_at
+		 FROM access_grant
+		 WHERE actor_id = $1 AND course_id = $2 AND revoked_at IS NULL
+		 ORDER BY granted_at DESC
+		 LIMIT 1`,
+		actorID, courseID,
+	).Scan(&g.GrantID, &g.ActorID, &g.CourseID, &g.TxnID, &g.GrantedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.AccessGrant{}, domain.ErrGrantNotFound
+	}
+	if err != nil {
+		return domain.AccessGrant{}, fmt.Errorf("get active grant: %w", err)
+	}
+	return g, nil
+}
+
 func (r *PostgresEntitlementRepository) LogAccessCheck(ctx context.Context, l domain.AccessCheckLog) error {
 	lessonID := sql.NullString{String: l.LessonID, Valid: l.LessonID != ""}
 	denyReason := sql.NullString{String: l.DenyReason, Valid: l.DenyReason != ""}

@@ -189,6 +189,70 @@ paths:
       responses:
         '200':
           description: Mock checkout session started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  status:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  balance:
+                    type: number
+                    description: Buyer's remaining virtual wallet balance
+                  payment_session_id:
+                    type: string
+                  redirect_url:
+                    type: string
+        '402':
+          description: Insufficient virtual wallet balance
+        '404':
+          description: Course not found
+
+  /purchase/refund:
+    post:
+      summary: Return a purchased course and refund the full amount to the buyer's virtual wallet
+      tags:
+        - Purchase
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - course_id
+              properties:
+                course_id:
+                  type: string
+      responses:
+        '200':
+          description: Refund processed and access revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  status:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  balance:
+                    type: number
+                    description: Buyer's wallet balance after the refund
+        '404':
+          description: No active purchase found for this course
 
   /purchase/webhook:
     post:

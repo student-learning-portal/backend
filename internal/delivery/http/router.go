@@ -40,6 +40,7 @@ func NewRouter(
 	guard := RequireEntitlement(entitlements, analytics)
 
 	mux.HandleFunc("POST /api/v1/purchase/checkout", auth(h.Purchase.Checkout))
+	mux.HandleFunc("POST /api/v1/purchase/refund", auth(h.Purchase.Refund))
 	mux.HandleFunc("POST /api/v1/purchase/webhook", h.Purchase.Webhook)
 
 	mux.HandleFunc(
