@@ -47,8 +47,14 @@ func (s *stubProgressRepo) Get(_ context.Context, actor, _, lesson string) (doma
 	return p, nil
 }
 
+// noopRecorder is an AnalyticsRecorder with no sinks; its Record is a no-op, so
+// handler tests exercise behaviour without asserting on emitted events.
+func noopRecorder() *usecase.AnalyticsRecorder {
+	return usecase.NewAnalyticsRecorder(domain.Source{})
+}
+
 func newPlayerHandler(lessons domain.LessonRepository, progress domain.ProgressRepository) *PlayerHandler {
-	return NewPlayerHandler(usecase.NewPlayerUseCase(lessons, progress))
+	return NewPlayerHandler(usecase.NewPlayerUseCase(lessons, progress), noopRecorder())
 }
 
 // withClaimsAndPath builds a request carrying auth claims and the player path values,

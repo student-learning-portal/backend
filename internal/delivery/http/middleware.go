@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/student-learning-portal/backend/internal/domain"
+	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
 type contextKey string
@@ -38,6 +39,12 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 			}
 
 			ctx := context.WithValue(r.Context(), claimsContextKey, claims)
+			// Attribute downstream analytics events to the authenticated user.
+			ctx = domain.ContextWithActor(ctx, domain.Actor{
+				ActorID:   claims.UserID,
+				Role:      claims.Role,
+				AuthState: domain.AuthStateAuthenticated,
+			})
 			next(w, r.WithContext(ctx))
 		}
 	}
@@ -45,8 +52,10 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 
 // RequireEntitlement checks that the authenticated user holds an active access grant
 // for the course in the {course_id} path parameter, blocking with 403 otherwise.
-// Every decision is written to access_check_log. Must be chained after RequireAuth.
-func RequireEntitlement(entRepo domain.EntitlementRepository) func(http.HandlerFunc) http.HandlerFunc {
+// Every decision is written to the audit-grade access_check_log and mirrored to the
+// analytics event stream as access.check (plus access.denied on refusal). Must be
+// chained after RequireAuth.
+func RequireEntitlement(entRepo domain.EntitlementRepository, analytics *usecase.AnalyticsRecorder) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := claimsFromContext(r.Context())
@@ -79,7 +88,20 @@ func RequireEntitlement(entRepo domain.EntitlementRepository) func(http.HandlerF
 				CheckedAt:  time.Now(),
 			})
 
+			analytics.Record(r.Context(), domain.EventAccessCheck, domain.PIINone, map[string]any{
+				"course_id":   courseID,
+				"lesson_id":   lessonID,
+				"decision":    decision,
+				"deny_reason": denyReason,
+			})
+
 			if !allowed {
+				analytics.Record(r.Context(), domain.EventAccessDenied, domain.PIINone, map[string]any{
+					"course_id":     courseID,
+					"lesson_id":     lessonID,
+					"deny_reason":   denyReason,
+					"attempted_via": "player",
+				})
 				writeError(w, http.StatusForbidden, "access denied: no active entitlement")
 				return
 			}

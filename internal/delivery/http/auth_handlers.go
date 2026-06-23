@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,10 +13,11 @@ import (
 
 type AuthHandler struct {
 	authUseCase *usecase.AuthUseCase
+	analytics   *usecase.AnalyticsRecorder
 }
 
-func NewAuthHandler(uc *usecase.AuthUseCase) *AuthHandler {
-	return &AuthHandler{authUseCase: uc}
+func NewAuthHandler(uc *usecase.AuthUseCase, analytics *usecase.AnalyticsRecorder) *AuthHandler {
+	return &AuthHandler{authUseCase: uc, analytics: analytics}
 }
 
 type registerRequest struct {
@@ -74,6 +76,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.analytics.Record(authedContext(r, user), domain.EventAuthSignup, domain.PIINone, map[string]any{
+		"role":   string(user.Role),
+		"method": "password",
+	})
+
 	writeJSON(w, http.StatusCreated, authResponse{Token: token, User: toUserPayload(user)})
 }
 
@@ -95,6 +102,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.analytics.Record(authedContext(r, user), domain.EventAuthLogin, domain.PIINone, map[string]any{
+		"method": "password",
+	})
+
 	writeJSON(w, http.StatusOK, authResponse{Token: token, User: toUserPayload(user)})
 }
 
@@ -113,6 +124,18 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, toUserPayload(user))
+}
+
+// authedContext attributes analytics events on the public auth endpoints to the
+// user that just authenticated. RequireAuth has not run here, so the request's
+// actor is otherwise anonymous; this folds the resolved identity into the context
+// the recorder reads.
+func authedContext(r *http.Request, user domain.User) context.Context {
+	return domain.ContextWithActor(r.Context(), domain.Actor{
+		ActorID:   user.ID,
+		Role:      user.Role,
+		AuthState: domain.AuthStateAuthenticated,
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

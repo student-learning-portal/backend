@@ -11,10 +11,11 @@ import (
 
 type PlayerHandler struct {
 	playerUseCase *usecase.PlayerUseCase
+	analytics     *usecase.AnalyticsRecorder
 }
 
-func NewPlayerHandler(uc *usecase.PlayerUseCase) *PlayerHandler {
-	return &PlayerHandler{playerUseCase: uc}
+func NewPlayerHandler(uc *usecase.PlayerUseCase, analytics *usecase.AnalyticsRecorder) *PlayerHandler {
+	return &PlayerHandler{playerUseCase: uc, analytics: analytics}
 }
 
 // materialDTO is a lesson attachment as returned to the player.
@@ -98,6 +99,13 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 		materials = append(materials, materialDTO{Title: m.Title, URL: m.URL, Type: m.Type})
 	}
 
+	h.analytics.Record(r.Context(), domain.EventPlayerLessonOpen, domain.PIINone, map[string]any{
+		"course_id":       content.Lesson.CourseID,
+		"lesson_id":       content.Lesson.ID,
+		"lesson_type":     content.Lesson.Type,
+		"resumed_from_ms": content.Progress.PositionMs,
+	})
+
 	writeJSON(w, http.StatusOK, lessonDataResponse{
 		LessonID:            content.Lesson.ID,
 		CourseID:            content.Lesson.CourseID,
@@ -150,6 +158,20 @@ func (h *PlayerHandler) SaveProgress(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to save progress")
 		}
 		return
+	}
+
+	h.analytics.Record(r.Context(), domain.EventPlayerProgressSave, domain.PIINone, map[string]any{
+		"course_id":        courseID,
+		"lesson_id":        lessonID,
+		"position_ms":      saved.PositionMs,
+		"percent_complete": saved.PercentComplete,
+	})
+	if req.Completed {
+		h.analytics.Record(r.Context(), domain.EventPlayerLessonComplete, domain.PIINone, map[string]any{
+			"course_id":      courseID,
+			"lesson_id":      lessonID,
+			"completion_pct": saved.PercentComplete,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, toProgressResponse(saved))

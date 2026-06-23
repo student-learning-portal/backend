@@ -151,6 +151,58 @@ curl -X GET "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<le
   -H "Authorization: Bearer <jwt>"
 ```
 
+## Analytics Event Logging
+
+The server emits a structured analytics event stream implementing
+`logging-architecture.md`. Every event conforms to the envelope in §2 and fans
+out to two sinks:
+- **Raw NDJSON transport** — one JSON line per event on **stdout** (§1.1 / §5.1),
+  ready to be tailed by a broker/loader.
+- **Postgres `event_log`** — the hot envelope fields land in typed columns and the
+  domain payload stays in the JSONB column (§5.2). Inserts are idempotent on
+  `event_id` (§4 dedupe).
+
+Audit-grade access state continues to live in the normalized `payment`,
+`access_grant`, and `access_check_log` tables (§5.3); the event stream mirrors
+those actions for analytics/replay without replacing the transactional source of
+truth.
+
+### Instrumented events
+| Trigger | Events emitted |
+|---|---|
+| `POST /auth/register` | `auth.signup` |
+| `POST /auth/login` | `auth.login` |
+| `POST /purchase/checkout` | `access.checkout_start`, `access.payment_succeeded`, `access.granted` |
+| `POST /purchase/webhook` | `access.payment_succeeded` + `access.granted` (SUCCESS) / `access.refund_completed` + `access.revoked` (REFUNDED) |
+| `RequireEntitlement` guard | `access.check` (+ `access.denied` on refusal) |
+| `GET /player/.../lessons/{id}` | `player.lesson_open` |
+| `POST /player/.../progress` | `player.progress_save` (+ `player.lesson_complete` when `completed`) |
+
+### Configuration (env)
+The per-instance `source` block (§2) is read from the environment:
+| Var | Meaning | Default |
+|---|---|---|
+| `APP_ENV` | `dev` / `staging` / `prod` | `dev` |
+| `HOSTNAME` | instance id | `local` |
+| `RELEASE` | deployed git sha | `unknown` |
+
+### Request headers honored
+`WithLogContext` enriches each event from the request: `X-Correlation-ID`
+(generated if absent), `X-Session-ID`, `X-Anonymous-ID`, W3C `traceparent`,
+`Accept-Language`, `X-Forwarded-For` (IP is truncated to /24 or /48 for privacy,
+§4), and consent via `X-Consent-Analytics` / `X-Consent-Marketing`. When analytics
+consent is declined, only `pii_level=none` operational events are emitted.
+
+### Observing events locally
+Events print to stdout as NDJSON, e.g. after a login:
+```json
+{"schema_version":"1.0.0","event_id":"...","event_name":"auth.login","event_ts":"2026-06-23T12:00:00.000Z","actor":{"actor_id":"...","role":"student","auth_state":"authenticated"},"source":{"service":"gateway","env":"dev",...},"payload":{"method":"password"},"pii_level":"none","consent":{"analytics":true,"marketing":false}}
+```
+Inspect the Postgres load with:
+```sql
+SELECT event_name, actor_id, course_id, payload FROM event_log ORDER BY event_ts DESC LIMIT 20;
+```
+
 ## User Protection
 
 - **Passwords** are hashed with bcrypt (`golang.org/x/crypto/bcrypt`, default cost) before storage — the `users.password_hash` column never holds plaintext, and only the hash is ever compared on login.

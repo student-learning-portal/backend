@@ -4,46 +4,56 @@ import (
 	"net/http"
 
 	"github.com/student-learning-portal/backend/internal/domain"
+	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
+// Handlers groups the per-domain HTTP handlers so the router assembly stays a
+// single dependency bundle rather than a long positional parameter list.
+type Handlers struct {
+	Catalog  *CatalogHandler
+	Auth     *AuthHandler
+	Purchase *PurchaseHandler
+	Player   *PlayerHandler
+}
+
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
+// The returned handler is wrapped in WithLogContext so every request carries the
+// request-scoped logging context the analytics recorder reads.
 func NewRouter(
-	catalogHandler *CatalogHandler,
-	authHandler *AuthHandler,
-	purchaseHandler *PurchaseHandler,
-	playerHandler *PlayerHandler,
+	h Handlers,
 	tokens domain.TokenService,
 	entitlements domain.EntitlementRepository,
-) *http.ServeMux {
+	analytics *usecase.AnalyticsRecorder,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/hello", HelloHandler)
 	mux.HandleFunc("/api/v1/health/db", DBHealthHandler)
 
-	mux.HandleFunc("GET /api/v1/catalog/courses", catalogHandler.GetCourses)
+	mux.HandleFunc("GET /api/v1/catalog/courses", h.Catalog.GetCourses)
 
-	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
-	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
-	mux.HandleFunc("GET /api/v1/auth/me", RequireAuth(tokens)(authHandler.Me))
+	mux.HandleFunc("POST /api/v1/auth/register", h.Auth.Register)
+	mux.HandleFunc("POST /api/v1/auth/login", h.Auth.Login)
+	mux.HandleFunc("GET /api/v1/auth/me", RequireAuth(tokens)(h.Auth.Me))
 
 	auth := RequireAuth(tokens)
-	guard := RequireEntitlement(entitlements)
+	guard := RequireEntitlement(entitlements, analytics)
 
-	mux.HandleFunc("POST /api/v1/purchase/checkout", auth(purchaseHandler.Checkout))
-	mux.HandleFunc("POST /api/v1/purchase/webhook", purchaseHandler.Webhook)
+	mux.HandleFunc("POST /api/v1/purchase/checkout", auth(h.Purchase.Checkout))
+	mux.HandleFunc("POST /api/v1/purchase/webhook", h.Purchase.Webhook)
 
 	mux.HandleFunc(
 		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}",
-		auth(guard(playerHandler.GetLesson)),
+		auth(guard(h.Player.GetLesson)),
 	)
 	mux.HandleFunc(
 		"POST /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
-		auth(guard(playerHandler.SaveProgress)),
+		auth(guard(h.Player.SaveProgress)),
 	)
 	mux.HandleFunc(
 		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
-		auth(guard(playerHandler.GetProgress)),
+		auth(guard(h.Player.GetProgress)),
 	)
 
-	return mux
+	return WithLogContext(mux)
 }
