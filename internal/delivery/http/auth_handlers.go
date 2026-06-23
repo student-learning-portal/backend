@@ -34,19 +34,20 @@ type loginRequest struct {
 }
 
 type authResponse struct {
-	Token string     `json:"token"`
+	Token string      `json:"token"`
 	User  userPayload `json:"user"`
 }
 
 type userPayload struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	FullName string `json:"full_name"`
-	Role     string `json:"role"`
+	ID       string  `json:"id"`
+	Email    string  `json:"email"`
+	FullName string  `json:"full_name"`
+	Role     string  `json:"role"`
+	Balance  float64 `json:"balance"`
 }
 
 func toUserPayload(u domain.User) userPayload {
-	return userPayload{ID: u.ID, Email: u.Email, FullName: u.FullName, Role: string(u.Role)}
+	return userPayload{ID: u.ID, Email: u.Email, FullName: u.FullName, Role: string(u.Role), Balance: u.Balance}
 }
 
 // Register handles POST /api/v1/auth/register

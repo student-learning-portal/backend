@@ -317,6 +317,11 @@ type PostPurchaseCheckoutJSONBody struct {
 	CourseId string `json:"course_id"`
 }
 
+// PostPurchaseRefundJSONBody defines parameters for PostPurchaseRefund.
+type PostPurchaseRefundJSONBody struct {
+	CourseId string `json:"course_id"`
+}
+
 // PostPurchaseWebhookJSONBody defines parameters for PostPurchaseWebhook.
 type PostPurchaseWebhookJSONBody struct {
 	CourseId      *string                            `json:"course_id,omitempty"`
@@ -339,6 +344,9 @@ type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONRequestBody PostPlayerC
 
 // PostPurchaseCheckoutJSONRequestBody defines body for PostPurchaseCheckout for application/json ContentType.
 type PostPurchaseCheckoutJSONRequestBody PostPurchaseCheckoutJSONBody
+
+// PostPurchaseRefundJSONRequestBody defines body for PostPurchaseRefund for application/json ContentType.
+type PostPurchaseRefundJSONRequestBody PostPurchaseRefundJSONBody
 
 // PostPurchaseWebhookJSONRequestBody defines body for PostPurchaseWebhook for application/json ContentType.
 type PostPurchaseWebhookJSONRequestBody PostPurchaseWebhookJSONBody

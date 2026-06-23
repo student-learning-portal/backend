@@ -1,6 +1,12 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+var ErrCourseNotFound = errors.New("course not found")
 
 // Course represents the core data structure for a learning course
 type Course struct {
@@ -31,4 +37,5 @@ type CourseListParams struct {
 
 type CatalogRepository interface {
 	GetCourses(params CourseListParams) ([]Course, int, error)
+	GetByID(ctx context.Context, id string) (Course, error)
 }

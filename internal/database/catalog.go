@@ -1,7 +1,9 @@
 package database
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -105,4 +107,20 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	}
 
 	return courses, total, nil
+}
+
+func (r *PostgresCatalogRepository) GetByID(ctx context.Context, id string) (domain.Course, error) {
+	var c domain.Course
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
+		 FROM courses WHERE id = $1`,
+		id,
+	).Scan(&c.ID, &c.TeacherID, &c.Title, &c.Description, &c.Subject, &c.Price, &c.Currency, &c.Status, &c.CreatedAt, &c.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Course{}, domain.ErrCourseNotFound
+	}
+	if err != nil {
+		return domain.Course{}, fmt.Errorf("get course by id: %w", err)
+	}
+	return c, nil
 }

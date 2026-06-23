@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-var ErrPaymentNotFound = errors.New("payment not found")
+var (
+	ErrPaymentNotFound = errors.New("payment not found")
+	ErrGrantNotFound   = errors.New("no active purchase found for this course")
+)
 
 type Payment struct {
 	TxnID     string
@@ -47,5 +50,6 @@ type EntitlementRepository interface {
 	CreateGrant(ctx context.Context, g AccessGrant) error
 	RevokeGrant(ctx context.Context, txnID, reason string) error
 	HasActiveGrant(ctx context.Context, actorID, courseID string) (bool, error)
+	GetActiveGrant(ctx context.Context, actorID, courseID string) (AccessGrant, error)
 	LogAccessCheck(ctx context.Context, l AccessCheckLog) error
 }
