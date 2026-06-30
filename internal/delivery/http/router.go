@@ -16,6 +16,7 @@ type Handlers struct {
 	Player      *PlayerHandler
 	UserCourses *UserCoursesHandler
 	Profile     *ProfileHandler
+  Analytics   *AnalyticsHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -70,6 +71,9 @@ func NewRouter(
 		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
 		auth(guard(h.Player.GetProgress)),
 	)
+
+	// Teacher analytics: ownership + role are enforced inside the handler.
+	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", auth(h.Analytics.TeacherDashboard))
 
 	return WithLogContext(mux)
 }

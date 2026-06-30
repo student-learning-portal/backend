@@ -60,6 +60,9 @@ func Run() {
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
 		log.Fatalf("failed to create uploads directory: %v", err)
 	}
+  
+  analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
+	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
 
 	handlers := delivery.Handlers{
 		Catalog:     delivery.NewCatalogHandler(catalogUseCase),
@@ -68,6 +71,7 @@ func Run() {
 		Player:      delivery.NewPlayerHandler(playerUseCase, analytics),
 		UserCourses: delivery.NewUserCoursesHandler(userCoursesUseCase),
 		Profile:     delivery.NewProfileHandler(authUseCase, uploadsDir),
+    Analytics: delivery.NewAnalyticsHandler(analyticsUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir)
