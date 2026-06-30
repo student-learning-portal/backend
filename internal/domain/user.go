@@ -34,6 +34,10 @@ type User struct {
 	// funds). New accounts start with a default grant so they can exercise
 	// the purchase flow.
 	Balance float64
+
+	// AvatarURL is the server-relative path to the user's profile picture,
+	// e.g. "/uploads/avatars/{id}.jpg". Empty when no avatar has been set.
+	AvatarURL string
 }
 
 var (
@@ -56,4 +60,9 @@ type UserRepository interface {
 	// CreditBalance atomically adds amount to the user's wallet (e.g. on
 	// refund) and returns the resulting balance.
 	CreditBalance(ctx context.Context, userID string, amount float64) (float64, error)
+
+	UpdateEmail(ctx context.Context, userID, newEmail string) (User, error)
+	UpdatePasswordHash(ctx context.Context, userID, newHash string) error
+	UpdateFullName(ctx context.Context, userID, fullName string) (User, error)
+	UpdateAvatarURL(ctx context.Context, userID, avatarURL string) (User, error)
 }

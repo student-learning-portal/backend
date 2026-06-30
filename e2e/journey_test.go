@@ -142,12 +142,12 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	progressRepo := database.NewPostgresProgressRepository(db)
 
 	handlers := delivery.Handlers{
-		Catalog:  delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo)),
+		Catalog:  delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo, lessonRepo)),
 		Auth:     delivery.NewAuthHandler(usecase.NewAuthUseCase(userRepo, tokens), analytics),
 		Purchase: delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
 		Player:   delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
 	}
-	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics))
+	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, t.TempDir()))
 }
 
 // - response DTOs (mirror the handler structs) ----------------------------

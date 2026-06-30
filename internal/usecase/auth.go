@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -81,6 +82,67 @@ func (uc *AuthUseCase) Login(input domain.LoginInput) (string, domain.User, erro
 // CurrentUser resolves the authenticated user from a verified token's claims.
 func (uc *AuthUseCase) CurrentUser(claims domain.Claims) (domain.User, error) {
 	return uc.users.GetByID(claims.UserID)
+}
+
+// ChangeEmail verifies the caller's current password, then updates their email.
+func (uc *AuthUseCase) ChangeEmail(ctx context.Context, userID, currentPassword, newEmail string) (domain.User, error) {
+	user, err := uc.users.GetByID(userID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return domain.User{}, domain.ErrInvalidLogin
+	}
+	email := normalizeEmail(newEmail)
+	if _, err = mail.ParseAddress(email); err != nil {
+		return domain.User{}, fmt.Errorf("%w: invalid email address", ErrValidation)
+	}
+	return uc.users.UpdateEmail(ctx, userID, email)
+}
+
+// ChangePassword verifies the caller's current password, then replaces it.
+func (uc *AuthUseCase) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	user, err := uc.users.GetByID(userID)
+	if err != nil {
+		return err
+	}
+	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+		return domain.ErrInvalidLogin
+	}
+	if len(newPassword) < minPasswordLength {
+		return fmt.Errorf("%w: password must be at least %d characters", ErrValidation, minPasswordLength)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	return uc.users.UpdatePasswordHash(ctx, userID, string(hash))
+}
+
+// ChangeName updates the caller's display name.
+func (uc *AuthUseCase) ChangeName(ctx context.Context, userID, fullName string) (domain.User, error) {
+	if strings.TrimSpace(fullName) == "" {
+		return domain.User{}, fmt.Errorf("%w: full name is required", ErrValidation)
+	}
+	return uc.users.UpdateFullName(ctx, userID, strings.TrimSpace(fullName))
+}
+
+// ChangeAvatar stores a new avatar URL for the caller.
+func (uc *AuthUseCase) ChangeAvatar(ctx context.Context, userID, avatarURL string) (domain.User, error) {
+	return uc.users.UpdateAvatarURL(ctx, userID, avatarURL)
+}
+
+// GetTeacherByID fetches a user by id and returns ErrUserNotFound if the
+// account does not exist or is not a teacher (prevents role enumeration).
+func (uc *AuthUseCase) GetTeacherByID(id string) (domain.User, error) {
+	user, err := uc.users.GetByID(id)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if user.Role != domain.RoleTeacher {
+		return domain.User{}, domain.ErrUserNotFound
+	}
+	return user, nil
 }
 
 func validateRegisterInput(email, password, fullName string, role domain.Role) error {

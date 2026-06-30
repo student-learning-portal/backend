@@ -17,6 +17,10 @@ type fakeLessonRepo struct {
 	materials []domain.Material
 }
 
+func (f *fakeLessonRepo) GetLessonsByCourseID(_ context.Context, _ string) ([]domain.Lesson, error) {
+	return nil, nil
+}
+
 func (f *fakeLessonRepo) GetLesson(_ context.Context, _, _ string) (domain.Lesson, error) {
 	return f.lesson, f.lessonErr
 }

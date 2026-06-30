@@ -38,4 +38,5 @@ type CourseListParams struct {
 type CatalogRepository interface {
 	GetCourses(params CourseListParams) ([]Course, int, error)
 	GetByID(ctx context.Context, id string) (Course, error)
+	GetByTeacherID(ctx context.Context, teacherID string) ([]Course, error)
 }

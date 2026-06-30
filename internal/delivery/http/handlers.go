@@ -42,6 +42,18 @@ func NewCatalogHandler(uc *usecase.CatalogUseCase) *CatalogHandler {
 	return &CatalogHandler{catalogUseCase: uc}
 }
 
+// GetCourseLessons handles GET /catalog/courses/{course_id}/lessons.
+// Public — no auth required. Returns all lessons ordered by position.
+func (h *CatalogHandler) GetCourseLessons(w http.ResponseWriter, r *http.Request) {
+	courseID := r.PathValue("course_id")
+	lessons, err := h.catalogUseCase.GetCourseLessons(r.Context(), courseID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, lessons)
+}
+
 // GetCourses handles GET /catalog/courses
 func (h *CatalogHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	// Extract query parameters

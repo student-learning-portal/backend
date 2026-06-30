@@ -52,4 +52,5 @@ type EntitlementRepository interface {
 	HasActiveGrant(ctx context.Context, actorID, courseID string) (bool, error)
 	GetActiveGrant(ctx context.Context, actorID, courseID string) (AccessGrant, error)
 	LogAccessCheck(ctx context.Context, l AccessCheckLog) error
+	GetEnrolledCourses(ctx context.Context, actorID string) ([]Course, error)
 }

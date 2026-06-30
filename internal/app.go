@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/student-learning-portal/backend/internal/database"
@@ -34,7 +35,8 @@ func Run() {
 	)
 
 	catalogRepo := database.NewPostgresCatalogRepository(database.DB)
-	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo)
+	lessonRepo := database.NewPostgresLessonRepository(database.DB)
+	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo, lessonRepo)
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -48,22 +50,31 @@ func Run() {
 	entitlementRepo := database.NewPostgresEntitlementRepository(database.DB)
 	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo)
 
-	lessonRepo := database.NewPostgresLessonRepository(database.DB)
 	progressRepo := database.NewPostgresProgressRepository(database.DB)
 	playerUseCase := usecase.NewPlayerUseCase(lessonRepo, progressRepo)
+
+	userCoursesUseCase := usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)
+
+	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
+	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
+	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
+		log.Fatalf("failed to create uploads directory: %v", err)
+	}
 
 	analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
 	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
 
 	handlers := delivery.Handlers{
-		Catalog:   delivery.NewCatalogHandler(catalogUseCase),
-		Auth:      delivery.NewAuthHandler(authUseCase, analytics),
-		Purchase:  delivery.NewPurchaseHandler(paymentUseCase, analytics),
-		Player:    delivery.NewPlayerHandler(playerUseCase, analytics),
-		Analytics: delivery.NewAnalyticsHandler(analyticsUseCase),
+		Catalog:     delivery.NewCatalogHandler(catalogUseCase),
+		Auth:        delivery.NewAuthHandler(authUseCase, analytics),
+		Purchase:    delivery.NewPurchaseHandler(paymentUseCase, analytics),
+		Player:      delivery.NewPlayerHandler(playerUseCase, analytics),
+		UserCourses: delivery.NewUserCoursesHandler(userCoursesUseCase),
+		Profile:     delivery.NewProfileHandler(authUseCase, uploadsDir),
+		Analytics:   delivery.NewAnalyticsHandler(analyticsUseCase),
 	}
 
-	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics)
+	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir)
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)
