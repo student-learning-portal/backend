@@ -52,11 +52,15 @@ func Run() {
 	progressRepo := database.NewPostgresProgressRepository(database.DB)
 	playerUseCase := usecase.NewPlayerUseCase(lessonRepo, progressRepo)
 
+	analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
+	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
+
 	handlers := delivery.Handlers{
-		Catalog:  delivery.NewCatalogHandler(catalogUseCase),
-		Auth:     delivery.NewAuthHandler(authUseCase, analytics),
-		Purchase: delivery.NewPurchaseHandler(paymentUseCase, analytics),
-		Player:   delivery.NewPlayerHandler(playerUseCase, analytics),
+		Catalog:   delivery.NewCatalogHandler(catalogUseCase),
+		Auth:      delivery.NewAuthHandler(authUseCase, analytics),
+		Purchase:  delivery.NewPurchaseHandler(paymentUseCase, analytics),
+		Player:    delivery.NewPlayerHandler(playerUseCase, analytics),
+		Analytics: delivery.NewAnalyticsHandler(analyticsUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics)
