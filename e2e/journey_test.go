@@ -142,7 +142,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	progressRepo := database.NewPostgresProgressRepository(db)
 
 	handlers := delivery.Handlers{
-		Catalog:  delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo)),
+		Catalog:  delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo, lessonRepo)),
 		Auth:     delivery.NewAuthHandler(usecase.NewAuthUseCase(userRepo, tokens), analytics),
 		Purchase: delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
 		Player:   delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),

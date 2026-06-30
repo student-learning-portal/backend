@@ -195,6 +195,35 @@ paths:
                 items:
                   $ref: '#/components/schemas/Course'
 
+  /catalog/courses/{course_id}/lessons:
+    get:
+      summary: List all lessons for a course
+      description: >
+        Returns every lesson in the course, ordered by their position field.
+        No authentication required. Returns an empty array when the course
+        exists but has no lessons.
+      tags:
+        - Catalog
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the course whose lessons to retrieve
+      responses:
+        '200':
+          description: Ordered list of lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lesson'
+        '400':
+          description: Missing course_id
+
   # ---------------------------------------------------------
   # USER — PROFILE MANAGEMENT
   # ---------------------------------------------------------
@@ -702,6 +731,29 @@ components:
         status:
           type: string
           enum: [draft, published, archived]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Lesson:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          type: string
+          enum: [video, text, quiz, mixed]
+        position:
+          type: integer
+          description: 1-based display order within the course
         created_at:
           type: string
           format: date-time

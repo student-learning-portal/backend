@@ -37,6 +37,7 @@ type Material struct {
 }
 
 type LessonRepository interface {
+	GetLessonsByCourseID(ctx context.Context, courseID string) ([]Lesson, error)
 	GetLesson(ctx context.Context, courseID, lessonID string) (Lesson, error)
 	GetLessonMedia(ctx context.Context, lessonID string) ([]Media, error)
 	GetLessonMaterials(ctx context.Context, lessonID string) ([]Material, error)

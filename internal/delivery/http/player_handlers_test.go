@@ -26,6 +26,10 @@ type stubLessonRepo struct {
 	materials []domain.Material
 }
 
+func (s *stubLessonRepo) GetLessonsByCourseID(_ context.Context, _ string) ([]domain.Lesson, error) {
+	return nil, nil
+}
+
 func (s *stubLessonRepo) GetLesson(_ context.Context, _, _ string) (domain.Lesson, error) {
 	return s.lesson, s.lessonErr
 }

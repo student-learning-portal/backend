@@ -34,6 +34,7 @@ func NewRouter(
 	mux.HandleFunc("/api/v1/health/db", DBHealthHandler)
 
 	mux.HandleFunc("GET /api/v1/catalog/courses", h.Catalog.GetCourses)
+	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/lessons", h.Catalog.GetCourseLessons)
 
 	mux.HandleFunc("POST /api/v1/auth/register", h.Auth.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Auth.Login)

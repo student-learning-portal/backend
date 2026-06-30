@@ -35,7 +35,8 @@ func Run() {
 	)
 
 	catalogRepo := database.NewPostgresCatalogRepository(database.DB)
-	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo)
+	lessonRepo := database.NewPostgresLessonRepository(database.DB)
+	catalogUseCase := usecase.NewCatalogUseCase(catalogRepo, lessonRepo)
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -49,7 +50,6 @@ func Run() {
 	entitlementRepo := database.NewPostgresEntitlementRepository(database.DB)
 	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo)
 
-	lessonRepo := database.NewPostgresLessonRepository(database.DB)
 	progressRepo := database.NewPostgresProgressRepository(database.DB)
 	playerUseCase := usecase.NewPlayerUseCase(lessonRepo, progressRepo)
 

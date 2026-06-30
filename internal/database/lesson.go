@@ -17,6 +17,31 @@ func NewPostgresLessonRepository(db *sql.DB) domain.LessonRepository {
 	return &PostgresLessonRepository{db: db}
 }
 
+func (r *PostgresLessonRepository) GetLessonsByCourseID(ctx context.Context, courseID string) ([]domain.Lesson, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, course_id, title, lesson_type, position, created_at, updated_at
+		 FROM lessons WHERE course_id = $1 ORDER BY position`,
+		courseID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get lessons by course: %w", err)
+	}
+	defer rows.Close()
+
+	lessons := []domain.Lesson{}
+	for rows.Next() {
+		var l domain.Lesson
+		if err := rows.Scan(&l.ID, &l.CourseID, &l.Title, &l.Type, &l.Position, &l.CreatedAt, &l.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan lesson row: %w", err)
+		}
+		lessons = append(lessons, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate lesson rows: %w", err)
+	}
+	return lessons, nil
+}
+
 func (r *PostgresLessonRepository) GetLesson(ctx context.Context, courseID, lessonID string) (domain.Lesson, error) {
 	var l domain.Lesson
 	err := r.db.QueryRowContext(ctx,
