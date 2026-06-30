@@ -1,5 +1,3 @@
-//go:build e2e
-
 // Package e2e holds end-to-end tests that run against a live Postgres instance.
 // The test is skipped automatically when the database is not reachable.
 //
@@ -39,11 +37,11 @@ const (
 // TestCoreJourney walks the primary learner path against a real database and a
 // full HTTP stack (no mocks):
 //
-//  1. Register a new student          → gets $1 000.00 wallet balance
-//  2. Sandbox checkout                → wallet debited, access grant created
-//  3. GET lesson                      → entitlement middleware allows, content returned
-//  4. POST progress at 60 s           → progress_state upserted
-//  5. GET progress                    → same 60 s returned (persistence confirmed)
+//  1. Register a new student          -> gets $1 000.00 wallet balance
+//  2. Sandbox checkout                -> wallet debited, access grant created
+//  3. GET lesson                      -> entitlement middleware allows, content returned
+//  4. POST progress at 60 s           -> progress_state upserted
+//  5. GET progress                    -> same 60 s returned (persistence confirmed)
 func TestCoreJourney(t *testing.T) {
 	db := openDB(t)
 	defer db.Close()
@@ -53,10 +51,10 @@ func TestCoreJourney(t *testing.T) {
 	defer srv.Close()
 	client := srv.Client()
 
-	// 1. Register a fresh student; new accounts start with $1 000.00.
+	// 1. Register a fresh student; new accounts start with 1 000.00
 	token, initialBalance := registerStudent(t, client, srv.URL)
 
-	// 2. Buy the course in sandbox — wallet must be debited.
+	// 2. Buy the course in sandbox - wallet must be debited
 	purchase := checkout(t, client, srv.URL, token, seedCourseID)
 	if purchase.Status != "succeeded" {
 		t.Fatalf("step 2 checkout: status = %q, want succeeded", purchase.Status)
@@ -65,7 +63,7 @@ func TestCoreJourney(t *testing.T) {
 		t.Fatalf("step 2 checkout: balance %.2f should be less than initial %.2f", purchase.Balance, initialBalance)
 	}
 
-	// 3. Access the lesson — RequireEntitlement must allow after purchase.
+	// 3. Access the lesson - RequireEntitlement must allow after purchase
 	lesson := getLesson(t, client, srv.URL, token, seedCourseID, seedLessonID)
 	if lesson.LessonID != seedLessonID {
 		t.Fatalf("step 3 get lesson: lesson_id = %q, want %q", lesson.LessonID, seedLessonID)
@@ -74,13 +72,13 @@ func TestCoreJourney(t *testing.T) {
 		t.Fatal("step 3 get lesson: content_url is empty")
 	}
 
-	// 4. Save progress at the 60-second mark.
+	// 4. Save progress at the 60 second mark
 	saved := saveProgress(t, client, srv.URL, token, seedCourseID, seedLessonID, 60)
 	if saved.ProgressSeconds != 60 {
 		t.Fatalf("step 4 save progress: progress_seconds = %d, want 60", saved.ProgressSeconds)
 	}
 
-	// 5. Re-fetch — confirm the row persisted in Postgres.
+	// 5. Re-fetch - confirm the row persisted in Postgres
 	got := getProgress(t, client, srv.URL, token, seedCourseID, seedLessonID)
 	if got.ProgressSeconds != 60 {
 		t.Fatalf("step 5 get progress: progress_seconds = %d, want 60 (not persisted)", got.ProgressSeconds)
@@ -90,14 +88,14 @@ func TestCoreJourney(t *testing.T) {
 	}
 }
 
-// openDB opens a Postgres connection with the same env vars the app reads.
-// Skips the test (rather than failing) when the database is not reachable.
+// openDB opens a Postgres connection with the same env vars the app reads
+// Skips the test when the database is not reachable
 func openDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		getenv("DB_HOST", "localhost"),
-		getenv("DB_PORT", "5433"), // Docker Compose maps postgres:5432 → host:5433
+		getenv("DB_PORT", "5433"),
 		getenv("POSTGRES_USER", "admin"),
 		getenv("POSTGRES_PASSWORD", "qwerty"),
 		getenv("POSTGRES_DB", "db"),
@@ -116,7 +114,7 @@ func openDB(t *testing.T) *sql.DB {
 }
 
 // applySeed resets all domain tables and loads the standard fixture set from
-// scripts/seed.sql, giving the test a known, reproducible starting state.
+// scripts/seed.sql, giving the test a known, reproducible starting state
 func applySeed(t *testing.T, db *sql.DB) {
 	t.Helper()
 	data, err := os.ReadFile("../scripts/seed.sql")
@@ -129,13 +127,13 @@ func applySeed(t *testing.T, db *sql.DB) {
 }
 
 // buildServer wires the full dependency graph (mirroring internal/app.go) and
-// returns a test HTTP server backed by real Postgres repos.
+// returns a test HTTP server backed by real Postgres repos
 func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	t.Helper()
 
 	secret := getenv("JWT_SECRET", testSecret)
 	tokens := security.NewJWTTokenService(secret, 24*time.Hour)
-	analytics := usecase.NewAnalyticsRecorder(domain.Source{}) // no sinks — keep tests quiet
+	analytics := usecase.NewAnalyticsRecorder(domain.Source{}) // no sinks - keep tests quiet
 
 	catalogRepo := database.NewPostgresCatalogRepository(db)
 	userRepo := database.NewPostgresUserRepository(db)
@@ -152,7 +150,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics))
 }
 
-// ── response DTOs (mirror the handler structs) ────────────────────────────────
+// - response DTOs (mirror the handler structs) ----------------------------
 
 type authResp struct {
 	Token string `json:"token"`
@@ -176,7 +174,7 @@ type progressResp struct {
 	UpdatedAt       string `json:"updated_at"`
 }
 
-// ── step helpers ──────────────────────────────────────────────────────────────
+// - step helpers ---------------------------------------------------------
 
 func registerStudent(t *testing.T, client *http.Client, base string) (token string, balance float64) {
 	t.Helper()
@@ -224,7 +222,7 @@ func getProgress(t *testing.T, client *http.Client, base, token, courseID, lesso
 }
 
 // call makes one HTTP request, asserts the status code, and JSON-decodes the
-// response body into dest. A non-matching status is a fatal test error.
+// response body into dest. A non-matching status is a fatal test error
 func call(t *testing.T, client *http.Client, method, url, token string, body any, wantStatus int, dest any) {
 	t.Helper()
 	var reqBody io.Reader = http.NoBody
