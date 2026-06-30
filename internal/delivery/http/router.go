@@ -16,7 +16,7 @@ type Handlers struct {
 	Player      *PlayerHandler
 	UserCourses *UserCoursesHandler
 	Profile     *ProfileHandler
-  Analytics   *AnalyticsHandler
+	Analytics   *AnalyticsHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.

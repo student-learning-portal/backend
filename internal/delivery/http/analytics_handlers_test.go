@@ -30,9 +30,11 @@ type stubCatalogRepo struct {
 func (s *stubCatalogRepo) GetCourses(_ domain.CourseListParams) ([]domain.Course, int, error) {
 	return nil, 0, nil
 }
+
 func (s *stubCatalogRepo) GetByID(_ context.Context, _ string) (domain.Course, error) {
 	return s.course, s.err
 }
+
 func (s *stubCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
 	return nil, nil
 }
