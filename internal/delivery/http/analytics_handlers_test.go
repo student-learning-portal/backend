@@ -33,6 +33,9 @@ func (s *stubCatalogRepo) GetCourses(_ domain.CourseListParams) ([]domain.Course
 func (s *stubCatalogRepo) GetByID(_ context.Context, _ string) (domain.Course, error) {
 	return s.course, s.err
 }
+func (s *stubCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
+}
 
 func newAnalyticsHandler(course domain.Course, courseErr error, rows []domain.StudentProgress) *AnalyticsHandler {
 	uc := usecase.NewAnalyticsUseCase(
@@ -59,10 +62,10 @@ func TestTeacherDashboard_OK(t *testing.T) {
 	stale := now.Add(-30 * 24 * time.Hour)
 
 	rows := []domain.StudentProgress{
-		{StudentID: "s-low", ProgressPercent: 10, LastActivity: &recent},   // at risk: progress
-		{StudentID: "s-ok", ProgressPercent: 80, LastActivity: &recent},    // on track
-		{StudentID: "s-stale", ProgressPercent: 95, LastActivity: &stale},  // at risk: inactivity
-		{StudentID: "s-none", ProgressPercent: 0, LastActivity: nil},       // at risk: never active
+		{StudentID: "s-low", ProgressPercent: 10, LastActivity: &recent},  // at risk: progress
+		{StudentID: "s-ok", ProgressPercent: 80, LastActivity: &recent},   // on track
+		{StudentID: "s-stale", ProgressPercent: 95, LastActivity: &stale}, // at risk: inactivity
+		{StudentID: "s-none", ProgressPercent: 0, LastActivity: nil},      // at risk: never active
 	}
 	h := newAnalyticsHandler(domain.Course{ID: "course-1", TeacherID: "teacher-1"}, nil, rows)
 
