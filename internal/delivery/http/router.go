@@ -36,6 +36,8 @@ func NewRouter(
 	mux.HandleFunc("POST /api/v1/auth/login", h.Auth.Login)
 	mux.HandleFunc("GET /api/v1/auth/me", RequireAuth(tokens)(h.Auth.Me))
 
+	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}", h.Auth.GetTeacher)
+
 	auth := RequireAuth(tokens)
 	guard := RequireEntitlement(entitlements, analytics)
 

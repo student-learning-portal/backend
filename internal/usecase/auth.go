@@ -83,6 +83,19 @@ func (uc *AuthUseCase) CurrentUser(claims domain.Claims) (domain.User, error) {
 	return uc.users.GetByID(claims.UserID)
 }
 
+// GetTeacherByID fetches a user by id and returns ErrUserNotFound if the
+// account does not exist or is not a teacher (prevents role enumeration).
+func (uc *AuthUseCase) GetTeacherByID(id string) (domain.User, error) {
+	user, err := uc.users.GetByID(id)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if user.Role != domain.RoleTeacher {
+		return domain.User{}, domain.ErrUserNotFound
+	}
+	return user, nil
+}
+
 func validateRegisterInput(email, password, fullName string, role domain.Role) error {
 	if _, err := mail.ParseAddress(email); err != nil {
 		return fmt.Errorf("%w: invalid email address", ErrValidation)

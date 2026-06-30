@@ -105,6 +105,36 @@ paths:
           description: Unauthorized
 
   # ---------------------------------------------------------
+  # TEACHERS
+  # ---------------------------------------------------------
+  /teachers/{teacher_id}:
+    get:
+      summary: Get a teacher's public profile
+      description: >
+        Returns the public profile of a teacher account. Responds with 404 for
+        unknown IDs and for IDs that belong to non-teacher accounts (prevents
+        role enumeration). No authentication required.
+      tags:
+        - Teachers
+      parameters:
+        - in: path
+          name: teacher_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the teacher to retrieve
+      responses:
+        '200':
+          description: Teacher profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+        '404':
+          description: Teacher not found
+
+  # ---------------------------------------------------------
   # CATALOG
   # ---------------------------------------------------------
   /catalog/courses:
@@ -467,6 +497,17 @@ components:
         role:
           type: string
           enum: [student, teacher]
+    TeacherProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [teacher]
     AuthResponse:
       type: object
       properties:

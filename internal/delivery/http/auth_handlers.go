@@ -136,6 +136,25 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toUserPayload(user))
 }
 
+type teacherResponse struct {
+	ID       string `json:"id"`
+	FullName string `json:"full_name"`
+	Role     string `json:"role"`
+}
+
+// GetTeacher handles GET /api/v1/teachers/{teacher_id}.
+// Returns the public profile of a teacher; responds 404 for non-existent IDs
+// and for IDs that belong to non-teacher accounts (prevents role enumeration).
+func (h *AuthHandler) GetTeacher(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("teacher_id")
+	user, err := h.authUseCase.GetTeacherByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "teacher not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, teacherResponse{ID: user.ID, FullName: user.FullName, Role: string(user.Role)})
+}
+
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
