@@ -38,15 +38,23 @@ type authResponse struct {
 }
 
 type userPayload struct {
-	ID       string  `json:"id"`
-	Email    string  `json:"email"`
-	FullName string  `json:"full_name"`
-	Role     string  `json:"role"`
-	Balance  float64 `json:"balance"`
+	ID        string  `json:"id"`
+	Email     string  `json:"email"`
+	FullName  string  `json:"full_name"`
+	Role      string  `json:"role"`
+	Balance   float64 `json:"balance"`
+	AvatarURL string  `json:"avatar_url,omitempty"`
 }
 
 func toUserPayload(u domain.User) userPayload {
-	return userPayload{ID: u.ID, Email: u.Email, FullName: u.FullName, Role: string(u.Role), Balance: u.Balance}
+	return userPayload{
+		ID:        u.ID,
+		Email:     u.Email,
+		FullName:  u.FullName,
+		Role:      string(u.Role),
+		Balance:   u.Balance,
+		AvatarURL: u.AvatarURL,
+	}
 }
 
 // Register handles POST /api/v1/auth/register

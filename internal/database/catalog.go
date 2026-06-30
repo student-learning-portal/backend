@@ -97,6 +97,29 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	}
 	defer rows.Close()
 
+	courses, err := scanCourseRows(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return courses, total, nil
+}
+
+func (r *PostgresCatalogRepository) GetByTeacherID(ctx context.Context, teacherID string) ([]domain.Course, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
+		 FROM courses WHERE teacher_id = $1 ORDER BY created_at DESC`,
+		teacherID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get courses by teacher: %w", err)
+	}
+	defer rows.Close()
+	return scanCourseRows(rows)
+}
+
+// scanCourseRows drains a *sql.Rows result set into a Course slice.
+// Callers are responsible for calling rows.Close().
+func scanCourseRows(rows *sql.Rows) ([]domain.Course, error) {
 	courses := []domain.Course{}
 	for rows.Next() {
 		var c domain.Course
@@ -105,15 +128,14 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 			&c.Subject, &c.Price, &c.Currency, &c.Status,
 			&c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
-			return nil, 0, fmt.Errorf("scan course: %w", err)
+			return nil, fmt.Errorf("scan course row: %w", err)
 		}
 		courses = append(courses, c)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("iterate courses: %w", err)
+		return nil, fmt.Errorf("iterate course rows: %w", err)
 	}
-
-	return courses, total, nil
+	return courses, nil
 }
 
 func (r *PostgresCatalogRepository) GetByID(ctx context.Context, id string) (domain.Course, error) {

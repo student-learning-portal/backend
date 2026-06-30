@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/student-learning-portal/backend/internal/database"
@@ -52,14 +53,24 @@ func Run() {
 	progressRepo := database.NewPostgresProgressRepository(database.DB)
 	playerUseCase := usecase.NewPlayerUseCase(lessonRepo, progressRepo)
 
-	handlers := delivery.Handlers{
-		Catalog:  delivery.NewCatalogHandler(catalogUseCase),
-		Auth:     delivery.NewAuthHandler(authUseCase, analytics),
-		Purchase: delivery.NewPurchaseHandler(paymentUseCase, analytics),
-		Player:   delivery.NewPlayerHandler(playerUseCase, analytics),
+	userCoursesUseCase := usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)
+
+	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
+	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
+	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
+		log.Fatalf("failed to create uploads directory: %v", err)
 	}
 
-	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics)
+	handlers := delivery.Handlers{
+		Catalog:     delivery.NewCatalogHandler(catalogUseCase),
+		Auth:        delivery.NewAuthHandler(authUseCase, analytics),
+		Purchase:    delivery.NewPurchaseHandler(paymentUseCase, analytics),
+		Player:      delivery.NewPlayerHandler(playerUseCase, analytics),
+		UserCourses: delivery.NewUserCoursesHandler(userCoursesUseCase),
+		Profile:     delivery.NewProfileHandler(authUseCase, uploadsDir),
+	}
+
+	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir)
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)

@@ -119,6 +119,23 @@ func (r *PostgresEntitlementRepository) GetActiveGrant(ctx context.Context, acto
 	return g, nil
 }
 
+func (r *PostgresEntitlementRepository) GetEnrolledCourses(ctx context.Context, actorID string) ([]domain.Course, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT c.id, c.teacher_id, c.title, c.description, c.subject, c.price, c.currency, c.status, c.created_at, c.updated_at
+		 FROM courses c
+		 INNER JOIN access_grant ag ON ag.course_id = c.id::text
+		 WHERE ag.actor_id = $1 AND ag.revoked_at IS NULL
+		 ORDER BY c.title`,
+		actorID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get enrolled courses: %w", err)
+	}
+	defer rows.Close()
+
+	return scanCourseRows(rows)
+}
+
 func (r *PostgresEntitlementRepository) LogAccessCheck(ctx context.Context, l domain.AccessCheckLog) error {
 	lessonID := sql.NullString{String: l.LessonID, Valid: l.LessonID != ""}
 	denyReason := sql.NullString{String: l.DenyReason, Valid: l.DenyReason != ""}

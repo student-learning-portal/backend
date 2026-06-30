@@ -12,6 +12,11 @@ import (
 
 const pgUniqueViolation = "23505"
 
+// userCols is the canonical column list returned by every user SELECT/RETURNING.
+const userCols = `id, email, password_hash, full_name, role,
+	COALESCE(anonymous_id::text, ''), created_at, updated_at, wallet_balance,
+	COALESCE(avatar_url, '')`
+
 type PostgresUserRepository struct {
 	db *sql.DB
 }
@@ -26,7 +31,7 @@ func (r *PostgresUserRepository) Create(user domain.User) (domain.User, error) {
 	row := r.db.QueryRow(
 		`INSERT INTO users (email, password_hash, full_name, role, anonymous_id)
 		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, email, password_hash, full_name, role, COALESCE(anonymous_id::text, ''), created_at, updated_at, wallet_balance`,
+		 RETURNING `+userCols,
 		user.Email, user.PasswordHash, user.FullName, user.Role, anonymousID,
 	)
 
@@ -42,11 +47,7 @@ func (r *PostgresUserRepository) Create(user domain.User) (domain.User, error) {
 }
 
 func (r *PostgresUserRepository) GetByEmail(email string) (domain.User, error) {
-	row := r.db.QueryRow(
-		`SELECT id, email, password_hash, full_name, role, COALESCE(anonymous_id::text, ''), created_at, updated_at, wallet_balance
-		 FROM users WHERE email = $1`,
-		email,
-	)
+	row := r.db.QueryRow(`SELECT `+userCols+` FROM users WHERE email = $1`, email)
 	user, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.User{}, domain.ErrUserNotFound
@@ -58,11 +59,7 @@ func (r *PostgresUserRepository) GetByEmail(email string) (domain.User, error) {
 }
 
 func (r *PostgresUserRepository) GetByID(id string) (domain.User, error) {
-	row := r.db.QueryRow(
-		`SELECT id, email, password_hash, full_name, role, COALESCE(anonymous_id::text, ''), created_at, updated_at, wallet_balance
-		 FROM users WHERE id = $1`,
-		id,
-	)
+	row := r.db.QueryRow(`SELECT `+userCols+` FROM users WHERE id = $1`, id)
 	user, err := scanUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.User{}, domain.ErrUserNotFound
@@ -73,9 +70,75 @@ func (r *PostgresUserRepository) GetByID(id string) (domain.User, error) {
 	return user, nil
 }
 
+func (r *PostgresUserRepository) UpdateEmail(ctx context.Context, userID, newEmail string) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx,
+		`UPDATE users SET email = $1, updated_at = now() WHERE id = $2 RETURNING `+userCols,
+		newEmail, userID,
+	)
+	user, err := scanUser(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, domain.ErrUserNotFound
+	}
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return domain.User{}, domain.ErrEmailTaken
+		}
+		return domain.User{}, fmt.Errorf("update email: %w", err)
+	}
+	return user, nil
+}
+
+func (r *PostgresUserRepository) UpdatePasswordHash(ctx context.Context, userID, newHash string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
+		newHash, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) UpdateFullName(ctx context.Context, userID, fullName string) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx,
+		`UPDATE users SET full_name = $1, updated_at = now() WHERE id = $2 RETURNING `+userCols,
+		fullName, userID,
+	)
+	user, err := scanUser(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, domain.ErrUserNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("update full name: %w", err)
+	}
+	return user, nil
+}
+
+func (r *PostgresUserRepository) UpdateAvatarURL(ctx context.Context, userID, avatarURL string) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx,
+		`UPDATE users SET avatar_url = $1, updated_at = now() WHERE id = $2 RETURNING `+userCols,
+		avatarURL, userID,
+	)
+	user, err := scanUser(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, domain.ErrUserNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("update avatar url: %w", err)
+	}
+	return user, nil
+}
+
 func scanUser(row *sql.Row) (domain.User, error) {
 	var u domain.User
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FullName, &u.Role, &u.AnonymousID, &u.CreatedAt, &u.UpdatedAt, &u.Balance)
+	err := row.Scan(
+		&u.ID, &u.Email, &u.PasswordHash, &u.FullName, &u.Role,
+		&u.AnonymousID, &u.CreatedAt, &u.UpdatedAt, &u.Balance, &u.AvatarURL,
+	)
 	return u, err
 }
 

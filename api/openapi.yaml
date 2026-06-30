@@ -196,6 +196,164 @@ paths:
                   $ref: '#/components/schemas/Course'
 
   # ---------------------------------------------------------
+  # USER — PROFILE MANAGEMENT
+  # ---------------------------------------------------------
+  /users/me/email:
+    patch:
+      summary: Change the authenticated user's email address
+      description: Requires the current password to prevent account takeover.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_email]
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Email updated. Returns the updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid email format
+        '401':
+          description: Current password is incorrect
+        '409':
+          description: Email already registered
+
+  /users/me/password:
+    patch:
+      summary: Change the authenticated user's password
+      description: Requires the current password. Returns 204 on success.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '204':
+          description: Password updated successfully
+        '400':
+          description: New password too short
+        '401':
+          description: Current password is incorrect
+
+  /users/me/name:
+    patch:
+      summary: Change the authenticated user's display name
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [full_name]
+              properties:
+                full_name:
+                  type: string
+      responses:
+        '200':
+          description: Name updated. Returns the updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: full_name is empty
+
+  /users/me/avatar:
+    post:
+      summary: Upload a profile picture
+      description: >
+        Accepts multipart/form-data with an `avatar` file field (max 5 MB).
+        Supported types: JPEG, PNG, GIF, WebP. The file is saved server-side
+        and the resulting URL is stored in the user's profile. The URL is
+        accessible at `GET /uploads/avatars/{user_id}.{ext}`.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded. Returns the updated user profile including avatar_url.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Missing file or invalid multipart form
+        '415':
+          description: Unsupported image type
+
+  # ---------------------------------------------------------
+  # USER — PERSONAL COURSES
+  # ---------------------------------------------------------
+  /users/me/courses:
+    get:
+      summary: Get courses for the authenticated user
+      description: >
+        Teachers receive every course they created, ordered by creation date
+        (newest first). Students receive every course they have an active
+        (non-revoked) enrolment for, ordered alphabetically by title.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of courses belonging to or enrolled in by the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+        '401':
+          description: Missing or invalid bearer token
+
+  # ---------------------------------------------------------
   # PURCHASE (SANDBOX)
   # ---------------------------------------------------------
   /purchase/checkout:
@@ -497,6 +655,12 @@ components:
         role:
           type: string
           enum: [student, teacher]
+        balance:
+          type: number
+          description: Virtual wallet balance (sandbox only)
+        avatar_url:
+          type: string
+          description: Server-relative path to the profile picture, e.g. /uploads/avatars/{id}.jpg. Omitted when no avatar has been set.
     TeacherProfile:
       type: object
       properties:

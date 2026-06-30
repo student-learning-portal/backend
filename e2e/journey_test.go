@@ -147,7 +147,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 		Purchase: delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
 		Player:   delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
 	}
-	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics))
+	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, t.TempDir()))
 }
 
 // - response DTOs (mirror the handler structs) ----------------------------

@@ -10,10 +10,12 @@ import (
 // Handlers groups the per-domain HTTP handlers so the router assembly stays a
 // single dependency bundle rather than a long positional parameter list.
 type Handlers struct {
-	Catalog  *CatalogHandler
-	Auth     *AuthHandler
-	Purchase *PurchaseHandler
-	Player   *PlayerHandler
+	Catalog     *CatalogHandler
+	Auth        *AuthHandler
+	Purchase    *PurchaseHandler
+	Player      *PlayerHandler
+	UserCourses *UserCoursesHandler
+	Profile     *ProfileHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -24,6 +26,7 @@ func NewRouter(
 	tokens domain.TokenService,
 	entitlements domain.EntitlementRepository,
 	analytics *usecase.AnalyticsRecorder,
+	uploadsDir string,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -40,6 +43,15 @@ func NewRouter(
 
 	auth := RequireAuth(tokens)
 	guard := RequireEntitlement(entitlements, analytics)
+
+	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
+
+	mux.HandleFunc("PATCH /api/v1/users/me/email", auth(h.Profile.PatchEmail))
+	mux.HandleFunc("PATCH /api/v1/users/me/password", auth(h.Profile.PatchPassword))
+	mux.HandleFunc("PATCH /api/v1/users/me/name", auth(h.Profile.PatchName))
+	mux.HandleFunc("POST /api/v1/users/me/avatar", auth(h.Profile.PostAvatar))
+
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
 
 	mux.HandleFunc("POST /api/v1/purchase/checkout", auth(h.Purchase.Checkout))
 	mux.HandleFunc("POST /api/v1/purchase/refund", auth(h.Purchase.Refund))
