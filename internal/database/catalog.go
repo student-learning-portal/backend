@@ -37,7 +37,8 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	args = append(args, coursePublished)
 
 	if params.Search != "" {
-		conditions = append(conditions, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", len(args)+1, len(args)+2))
+		titleIdx := len(args) + 1
+		conditions = append(conditions, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", titleIdx, titleIdx+1))
 		args = append(args, "%"+params.Search+"%", "%"+params.Search+"%")
 	}
 	if params.Subject != "" {
@@ -79,12 +80,14 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	}
 	offset := (page - 1) * pageSize
 
+	limitIdx := len(args) + 1
+	//nolint:gosec // sortBy validated against allowlist; sortOrder is "ASC"/"DESC" only; where uses parameterized placeholders
 	query := fmt.Sprintf(
 		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
 		 FROM courses %s
 		 ORDER BY %s %s
 		 LIMIT $%d OFFSET $%d`,
-		where, sortBy, sortOrder, len(args)+1, len(args)+2,
+		where, sortBy, sortOrder, limitIdx, limitIdx+1,
 	)
 	args = append(args, pageSize, offset)
 
@@ -97,7 +100,11 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	courses := []domain.Course{}
 	for rows.Next() {
 		var c domain.Course
-		if err := rows.Scan(&c.ID, &c.TeacherID, &c.Title, &c.Description, &c.Subject, &c.Price, &c.Currency, &c.Status, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&c.ID, &c.TeacherID, &c.Title, &c.Description,
+			&c.Subject, &c.Price, &c.Currency, &c.Status,
+			&c.CreatedAt, &c.UpdatedAt,
+		); err != nil {
 			return nil, 0, fmt.Errorf("scan course: %w", err)
 		}
 		courses = append(courses, c)

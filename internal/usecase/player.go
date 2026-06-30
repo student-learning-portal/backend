@@ -61,7 +61,12 @@ func (uc *PlayerUseCase) GetLessonContent(ctx context.Context, actorID, courseID
 // from the media duration when known (100 once completed) so the stored value stays
 // consistent without trusting a client-supplied percentage. The lesson is validated
 // to exist within the course first, so we never persist progress for a stray id.
-func (uc *PlayerUseCase) SaveProgress(ctx context.Context, actorID, courseID, lessonID string, positionMs int, completed bool) (domain.ProgressState, error) {
+func (uc *PlayerUseCase) SaveProgress(
+	ctx context.Context,
+	actorID, courseID, lessonID string,
+	positionMs int,
+	completed bool,
+) (domain.ProgressState, error) {
 	if positionMs < 0 {
 		return domain.ProgressState{}, fmt.Errorf("%w: position_ms must not be negative", ErrValidation)
 	}
@@ -82,7 +87,7 @@ func (uc *PlayerUseCase) SaveProgress(ctx context.Context, actorID, courseID, le
 		PositionMs:      positionMs,
 		PercentComplete: derivePercent(positionMs, completed, media),
 	}
-	if err := uc.progress.Save(ctx, state); err != nil {
+	if err = uc.progress.Save(ctx, state); err != nil {
 		return domain.ProgressState{}, fmt.Errorf("save progress: %w", err)
 	}
 
@@ -109,7 +114,7 @@ func (uc *PlayerUseCase) GetProgress(ctx context.Context, actorID, courseID, les
 // lesson with no timed media falls back to 0/100 based on the completed flag.
 func derivePercent(positionMs int, completed bool, media []domain.Media) float64 {
 	if completed {
-		return 100
+		return 100 //nolint:mnd // 100 percent
 	}
 
 	maxDuration := 0
@@ -122,12 +127,12 @@ func derivePercent(positionMs int, completed bool, media []domain.Media) float64
 		return 0
 	}
 
-	percent := float64(positionMs) / float64(maxDuration) * 100
+	percent := float64(positionMs) / float64(maxDuration) * 100 //nolint:mnd // 100 percent
 	if percent < 0 {
 		return 0
 	}
-	if percent > 100 {
-		return 100
+	if percent > 100 { //nolint:mnd // 100 percent
+		return 100 //nolint:mnd // 100 percent
 	}
 	return percent
 }

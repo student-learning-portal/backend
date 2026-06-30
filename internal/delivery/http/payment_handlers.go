@@ -51,7 +51,7 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.analytics.Record(r.Context(), domain.EventAccessCheckoutStart, domain.PIINone, map[string]any{
-		"course_id": req.CourseID,
+		keyCourseID: req.CourseID,
 	})
 
 	result, err := h.paymentUseCase.Checkout(r.Context(), claims.UserID, req.CourseID)
@@ -73,16 +73,16 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// Sandbox checkout settles immediately and opens access (see PaymentUseCase),
 	// so the payment-cleared and access-opened events fire together here.
 	h.analytics.Record(r.Context(), domain.EventAccessPaymentSucceeded, domain.PIINone, map[string]any{
-		"course_id": payment.CourseID,
+		keyCourseID: payment.CourseID,
 		"cart_id":   payment.CartID,
-		"txn_id":    payment.TxnID,
+		keyTxnID:    payment.TxnID,
 		"amount":    payment.Amount,
 		"currency":  payment.Currency,
 		"sandbox":   payment.Sandbox,
 	})
 	h.analytics.Record(r.Context(), domain.EventAccessGranted, domain.PIINone, map[string]any{
-		"course_id": payment.CourseID,
-		"txn_id":    payment.TxnID,
+		keyCourseID: payment.CourseID,
+		keyTxnID:    payment.TxnID,
 		"reason":    "purchase",
 	})
 
@@ -142,14 +142,14 @@ func (h *PurchaseHandler) Refund(w http.ResponseWriter, r *http.Request) {
 	payment := result.Payment
 
 	h.analytics.Record(r.Context(), domain.EventAccessRefundCompleted, domain.PIINone, map[string]any{
-		"course_id": payment.CourseID,
-		"txn_id":    payment.TxnID,
+		keyCourseID: payment.CourseID,
+		keyTxnID:    payment.TxnID,
 		"amount":    payment.Amount,
 		"currency":  payment.Currency,
 	})
 	h.analytics.Record(r.Context(), domain.EventAccessRevoked, domain.PIINone, map[string]any{
-		"course_id": payment.CourseID,
-		"txn_id":    payment.TxnID,
+		keyCourseID: payment.CourseID,
+		keyTxnID:    payment.TxnID,
 		"reason":    "refund",
 	})
 
@@ -200,22 +200,22 @@ func (h *PurchaseHandler) recordWebhook(r *http.Request, req webhookRequest) {
 	switch req.Status {
 	case "SUCCESS":
 		h.analytics.Record(ctx, domain.EventAccessPaymentSucceeded, domain.PIINone, map[string]any{
-			"course_id": req.CourseID,
-			"txn_id":    req.TransactionID,
+			keyCourseID: req.CourseID,
+			keyTxnID:    req.TransactionID,
 		})
 		h.analytics.Record(ctx, domain.EventAccessGranted, domain.PIINone, map[string]any{
-			"course_id": req.CourseID,
-			"txn_id":    req.TransactionID,
+			keyCourseID: req.CourseID,
+			keyTxnID:    req.TransactionID,
 			"reason":    "purchase",
 		})
 	case "REFUNDED":
 		h.analytics.Record(ctx, domain.EventAccessRefundCompleted, domain.PIINone, map[string]any{
-			"course_id": req.CourseID,
-			"txn_id":    req.TransactionID,
+			keyCourseID: req.CourseID,
+			keyTxnID:    req.TransactionID,
 		})
 		h.analytics.Record(ctx, domain.EventAccessRevoked, domain.PIINone, map[string]any{
-			"course_id": req.CourseID,
-			"txn_id":    req.TransactionID,
+			keyCourseID: req.CourseID,
+			keyTxnID:    req.TransactionID,
 			"reason":    "refund",
 		})
 	}

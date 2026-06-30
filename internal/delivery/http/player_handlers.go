@@ -59,9 +59,9 @@ type progressResponse struct {
 func toProgressResponse(p domain.ProgressState) progressResponse {
 	return progressResponse{
 		LessonID:        p.LessonID,
-		ProgressSeconds: p.PositionMs / 1000,
+		ProgressSeconds: p.PositionMs / 1000, //nolint:mnd // ms -> s
 		PercentComplete: p.PercentComplete,
-		Completed:       p.PercentComplete >= 100,
+		Completed:       p.PercentComplete >= 100, //nolint:mnd // 100 percent
 		UpdatedAt:       p.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
@@ -91,7 +91,7 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 	contentURL, durationSeconds := "", 0
 	if len(content.Media) > 0 {
 		contentURL = content.Media[0].URL
-		durationSeconds = content.Media[0].DurationMs / 1000
+		durationSeconds = content.Media[0].DurationMs / 1000 //nolint:mnd // ms -> s
 	}
 
 	materials := make([]materialDTO, 0, len(content.Materials))
@@ -100,8 +100,8 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.analytics.Record(r.Context(), domain.EventPlayerLessonOpen, domain.PIINone, map[string]any{
-		"course_id":       content.Lesson.CourseID,
-		"lesson_id":       content.Lesson.ID,
+		keyCourseID:       content.Lesson.CourseID,
+		keyLessonID:       content.Lesson.ID,
 		"lesson_type":     content.Lesson.Type,
 		"resumed_from_ms": content.Progress.PositionMs,
 	})
@@ -115,7 +115,7 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 		ContentURL:          contentURL,
 		DurationSeconds:     durationSeconds,
 		Materials:           materials,
-		LastProgressSeconds: content.Progress.PositionMs / 1000,
+		LastProgressSeconds: content.Progress.PositionMs / 1000, //nolint:mnd // ms -> s
 		PercentComplete:     content.Progress.PercentComplete,
 	})
 }
@@ -146,7 +146,7 @@ func (h *PlayerHandler) SaveProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	saved, err := h.playerUseCase.SaveProgress(
-		r.Context(), claims.UserID, courseID, lessonID, *req.ProgressSeconds*1000, req.Completed,
+		r.Context(), claims.UserID, courseID, lessonID, *req.ProgressSeconds*1000, req.Completed, //nolint:mnd // s -> ms
 	)
 	if err != nil {
 		switch {
@@ -161,15 +161,15 @@ func (h *PlayerHandler) SaveProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.analytics.Record(r.Context(), domain.EventPlayerProgressSave, domain.PIINone, map[string]any{
-		"course_id":        courseID,
-		"lesson_id":        lessonID,
+		keyCourseID:        courseID,
+		keyLessonID:        lessonID,
 		"position_ms":      saved.PositionMs,
 		"percent_complete": saved.PercentComplete,
 	})
 	if req.Completed {
 		h.analytics.Record(r.Context(), domain.EventPlayerLessonComplete, domain.PIINone, map[string]any{
-			"course_id":      courseID,
-			"lesson_id":      lessonID,
+			keyCourseID:      courseID,
+			keyLessonID:      lessonID,
 			"completion_pct": saved.PercentComplete,
 		})
 	}

@@ -14,7 +14,11 @@ import (
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
-const tokenTTL = 24 * time.Hour
+const (
+	tokenTTL          = 24 * time.Hour
+	serverReadTimeout = 10 * time.Second
+	serverIdleTimeout = 120 * time.Second
+)
 
 // Run is the main application assembly point.
 // It sets up dependencies, database connections, and starts the HTTP server.
@@ -59,7 +63,14 @@ func Run() {
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)
-	if err := http.ListenAndServe(port, router); err != nil {
+	srv := &http.Server{
+		Addr:         port,
+		Handler:      router,
+		ReadTimeout:  serverReadTimeout,
+		WriteTimeout: serverReadTimeout,
+		IdleTimeout:  serverIdleTimeout,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

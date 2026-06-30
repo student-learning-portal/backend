@@ -12,6 +12,11 @@ import (
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
+const (
+	testCourseID = "course-1"
+	testLessonID = "lesson-1"
+)
+
 // --- in-memory repos for handler-through-usecase tests ---
 
 type stubLessonRepo struct {
@@ -24,9 +29,11 @@ type stubLessonRepo struct {
 func (s *stubLessonRepo) GetLesson(_ context.Context, _, _ string) (domain.Lesson, error) {
 	return s.lesson, s.lessonErr
 }
+
 func (s *stubLessonRepo) GetLessonMedia(_ context.Context, _ string) ([]domain.Media, error) {
 	return s.media, nil
 }
+
 func (s *stubLessonRepo) GetLessonMaterials(_ context.Context, _ string) ([]domain.Material, error) {
 	return s.materials, nil
 }
@@ -39,6 +46,7 @@ func (s *stubProgressRepo) Save(_ context.Context, p domain.ProgressState) error
 	s.store[p.ActorID+p.LessonID] = p
 	return nil
 }
+
 func (s *stubProgressRepo) Get(_ context.Context, actor, _, lesson string) (domain.ProgressState, error) {
 	p, ok := s.store[actor+lesson]
 	if !ok {
@@ -59,26 +67,26 @@ func newPlayerHandler(lessons domain.LessonRepository, progress domain.ProgressR
 
 // withClaimsAndPath builds a request carrying auth claims and the player path values,
 // mimicking what RequireAuth + ServeMux supply at runtime.
-func withClaimsAndPath(method, body, courseID, lessonID string) *http.Request {
+func withClaimsAndPath(method, body, lessonID string) *http.Request {
 	r := httptest.NewRequest(method, "http://x/", strings.NewReader(body))
 	r = r.WithContext(context.WithValue(r.Context(), claimsContextKey, domain.Claims{UserID: "user-1"}))
-	r.SetPathValue("course_id", courseID)
+	r.SetPathValue("course_id", testCourseID)
 	r.SetPathValue("lesson_id", lessonID)
 	return r
 }
 
 func TestGetLesson_ReturnsContentAndResumePoint(t *testing.T) {
 	lessons := &stubLessonRepo{
-		lesson: domain.Lesson{ID: "lesson-1", CourseID: "course-1", Title: "Intro", Type: "video", Position: 1},
+		lesson: domain.Lesson{ID: testLessonID, CourseID: testCourseID, Title: "Intro", Type: "video", Position: 1},
 		media:  []domain.Media{{URL: "https://cdn/x.mp4", DurationMs: 100_000, Type: "video"}},
 	}
 	progress := &stubProgressRepo{store: map[string]domain.ProgressState{
-		"user-1lesson-1": {ActorID: "user-1", CourseID: "course-1", LessonID: "lesson-1", PositionMs: 30_000, PercentComplete: 30},
+		"user-1lesson-1": {ActorID: "user-1", CourseID: testCourseID, LessonID: testLessonID, PositionMs: 30_000, PercentComplete: 30},
 	}}
 	h := newPlayerHandler(lessons, progress)
 
 	w := httptest.NewRecorder()
-	h.GetLesson(w, withClaimsAndPath(http.MethodGet, "", "course-1", "lesson-1"))
+	h.GetLesson(w, withClaimsAndPath(http.MethodGet, "", testLessonID))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -98,7 +106,7 @@ func TestGetLesson_ReturnsContentAndResumePoint(t *testing.T) {
 func TestGetLesson_NotFound(t *testing.T) {
 	h := newPlayerHandler(&stubLessonRepo{lessonErr: domain.ErrLessonNotFound}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
 	w := httptest.NewRecorder()
-	h.GetLesson(w, withClaimsAndPath(http.MethodGet, "", "course-1", "missing"))
+	h.GetLesson(w, withClaimsAndPath(http.MethodGet, "", "missing"))
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", w.Code)
 	}
@@ -106,14 +114,14 @@ func TestGetLesson_NotFound(t *testing.T) {
 
 func TestSaveProgress_PersistsAndEchoes(t *testing.T) {
 	lessons := &stubLessonRepo{
-		lesson: domain.Lesson{ID: "lesson-1", CourseID: "course-1"},
+		lesson: domain.Lesson{ID: testLessonID, CourseID: testCourseID},
 		media:  []domain.Media{{DurationMs: 60_000}},
 	}
 	progress := &stubProgressRepo{store: map[string]domain.ProgressState{}}
 	h := newPlayerHandler(lessons, progress)
 
 	w := httptest.NewRecorder()
-	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"progress_seconds":30,"completed":false}`, "course-1", "lesson-1"))
+	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"progress_seconds":30,"completed":false}`, testLessonID))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -134,27 +142,27 @@ func TestSaveProgress_PersistsAndEchoes(t *testing.T) {
 }
 
 func TestSaveProgress_MissingFieldRejected(t *testing.T) {
-	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: "lesson-1"}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
+	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: testLessonID}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
 	w := httptest.NewRecorder()
-	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"completed":true}`, "course-1", "lesson-1"))
+	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"completed":true}`, testLessonID))
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
 
 func TestSaveProgress_NegativeRejected(t *testing.T) {
-	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: "lesson-1"}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
+	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: testLessonID}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
 	w := httptest.NewRecorder()
-	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"progress_seconds":-5}`, "course-1", "lesson-1"))
+	h.SaveProgress(w, withClaimsAndPath(http.MethodPost, `{"progress_seconds":-5}`, testLessonID))
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
 
 func TestGetProgress_NotFoundReturns404(t *testing.T) {
-	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: "lesson-1"}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
+	h := newPlayerHandler(&stubLessonRepo{lesson: domain.Lesson{ID: testLessonID}}, &stubProgressRepo{store: map[string]domain.ProgressState{}})
 	w := httptest.NewRecorder()
-	h.GetProgress(w, withClaimsAndPath(http.MethodGet, "", "course-1", "lesson-1"))
+	h.GetProgress(w, withClaimsAndPath(http.MethodGet, "", testLessonID))
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", w.Code)
 	}

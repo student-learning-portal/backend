@@ -67,7 +67,7 @@ func (uc *AuthUseCase) Login(input domain.LoginInput) (string, domain.User, erro
 		return "", domain.User{}, err
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return "", domain.User{}, domain.ErrInvalidLogin
 	}
 

@@ -20,9 +20,11 @@ type fakeLessonRepo struct {
 func (f *fakeLessonRepo) GetLesson(_ context.Context, _, _ string) (domain.Lesson, error) {
 	return f.lesson, f.lessonErr
 }
+
 func (f *fakeLessonRepo) GetLessonMedia(_ context.Context, _ string) ([]domain.Media, error) {
 	return f.media, nil
 }
+
 func (f *fakeLessonRepo) GetLessonMaterials(_ context.Context, _ string) ([]domain.Material, error) {
 	return f.materials, nil
 }
