@@ -6,7 +6,7 @@
 -- only; the at-risk classification lives in the application (domain.ClassifyRisk)
 -- so thresholds stay in one place.
 -- ============================================================
-CREATE TABLE analytics_student_course (
+CREATE TABLE IF NOT EXISTS analytics_student_course (
     actor_id          TEXT         NOT NULL,
     course_id         TEXT         NOT NULL,
     lessons_total     INTEGER      NOT NULL DEFAULT 0,
@@ -17,4 +17,4 @@ CREATE TABLE analytics_student_course (
     PRIMARY KEY (actor_id, course_id)
 );
 
-CREATE INDEX ix_ascp_course ON analytics_student_course (course_id);
+CREATE INDEX IF NOT EXISTS ix_ascp_course ON analytics_student_course (course_id);

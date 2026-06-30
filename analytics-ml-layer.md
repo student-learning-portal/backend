@@ -21,7 +21,7 @@
 
 ## 2. Rollup: `analytics_student_course`
 
-Per `(student, course)` standing. Migration `000004_analytics_rollup.up.sql`.
+Per `(student, course)` standing. Migration `000005_analytics_rollup.up.sql`.
 
 | Column | Meaning |
 |---|---|
