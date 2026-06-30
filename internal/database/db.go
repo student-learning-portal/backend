@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib" // registers pgx as the "pgx" driver for database/sql
 )
 
 // DB is the shared connection pool used by the repositories.

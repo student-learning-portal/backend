@@ -15,6 +15,13 @@ type contextKey string
 
 const claimsContextKey contextKey = "claims"
 
+// Analytics event payload keys shared across all handler files in this package.
+const (
+	keyCourseID = "course_id"
+	keyLessonID = "lesson_id"
+	keyTxnID    = "txn_id"
+)
+
 func claimsFromContext(ctx context.Context) (domain.Claims, bool) {
 	claims, ok := ctx.Value(claimsContextKey).(domain.Claims)
 	return claims, ok
@@ -55,7 +62,10 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 // Every decision is written to the audit-grade access_check_log and mirrored to the
 // analytics event stream as access.check (plus access.denied on refusal). Must be
 // chained after RequireAuth.
-func RequireEntitlement(entRepo domain.EntitlementRepository, analytics *usecase.AnalyticsRecorder) func(http.HandlerFunc) http.HandlerFunc {
+func RequireEntitlement(
+	entRepo domain.EntitlementRepository,
+	analytics *usecase.AnalyticsRecorder,
+) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := claimsFromContext(r.Context())
@@ -64,8 +74,8 @@ func RequireEntitlement(entRepo domain.EntitlementRepository, analytics *usecase
 				return
 			}
 
-			courseID := r.PathValue("course_id")
-			lessonID := r.PathValue("lesson_id")
+			courseID := r.PathValue(keyCourseID)
+			lessonID := r.PathValue(keyLessonID)
 
 			allowed, err := entRepo.HasActiveGrant(r.Context(), claims.UserID, courseID)
 			if err != nil {
@@ -89,16 +99,16 @@ func RequireEntitlement(entRepo domain.EntitlementRepository, analytics *usecase
 			})
 
 			analytics.Record(r.Context(), domain.EventAccessCheck, domain.PIINone, map[string]any{
-				"course_id":   courseID,
-				"lesson_id":   lessonID,
+				keyCourseID:   courseID,
+				keyLessonID:   lessonID,
 				"decision":    decision,
 				"deny_reason": denyReason,
 			})
 
 			if !allowed {
 				analytics.Record(r.Context(), domain.EventAccessDenied, domain.PIINone, map[string]any{
-					"course_id":     courseID,
-					"lesson_id":     lessonID,
+					keyCourseID:     courseID,
+					keyLessonID:     lessonID,
 					"deny_reason":   denyReason,
 					"attempted_via": "player",
 				})

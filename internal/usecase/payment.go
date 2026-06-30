@@ -15,7 +15,11 @@ type PaymentUseCase struct {
 	users        domain.UserRepository
 }
 
-func NewPaymentUseCase(entitlements domain.EntitlementRepository, courses domain.CatalogRepository, users domain.UserRepository) *PaymentUseCase {
+func NewPaymentUseCase(
+	entitlements domain.EntitlementRepository,
+	courses domain.CatalogRepository,
+	users domain.UserRepository,
+) *PaymentUseCase {
 	return &PaymentUseCase{entitlements: entitlements, courses: courses, users: users}
 }
 
@@ -103,10 +107,10 @@ func (uc *PaymentUseCase) Refund(ctx context.Context, actorID, courseID string) 
 	if err != nil {
 		return RefundResult{}, fmt.Errorf("refund: %w", err)
 	}
-	if err := uc.entitlements.UpdatePaymentStatus(ctx, grant.TxnID, "refunded"); err != nil {
+	if err = uc.entitlements.UpdatePaymentStatus(ctx, grant.TxnID, "refunded"); err != nil {
 		return RefundResult{}, fmt.Errorf("refund: %w", err)
 	}
-	if err := uc.entitlements.RevokeGrant(ctx, grant.TxnID, "refund"); err != nil {
+	if err = uc.entitlements.RevokeGrant(ctx, grant.TxnID, "refund"); err != nil {
 		return RefundResult{}, fmt.Errorf("refund: %w", err)
 	}
 	balance, err := uc.users.CreditBalance(ctx, actorID, payment.Amount)

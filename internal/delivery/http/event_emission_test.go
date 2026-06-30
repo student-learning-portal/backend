@@ -37,14 +37,14 @@ func contains(names []string, want string) bool {
 
 func TestSaveProgress_EmitsProgressAndCompleteEvents(t *testing.T) {
 	lessons := &stubLessonRepo{
-		lesson: domain.Lesson{ID: "lesson-1", CourseID: "course-1"},
+		lesson: domain.Lesson{ID: testLessonID, CourseID: testCourseID},
 		media:  []domain.Media{{DurationMs: 60_000}},
 	}
 	sink := &captureSink{}
 	recorder := usecase.NewAnalyticsRecorder(domain.Source{Env: "test"}, sink)
 	h := NewPlayerHandler(usecase.NewPlayerUseCase(lessons, &stubProgressRepo{store: map[string]domain.ProgressState{}}), recorder)
 
-	r := withClaimsAndPath(http.MethodPost, `{"progress_seconds":60,"completed":true}`, "course-1", "lesson-1")
+	r := withClaimsAndPath(http.MethodPost, `{"progress_seconds":60,"completed":true}`, testLessonID)
 	r = r.WithContext(domain.ContextWithLogContext(r.Context(), domain.LogContext{Consent: domain.Consent{Analytics: true}}))
 
 	h.SaveProgress(httptest.NewRecorder(), r)
@@ -60,14 +60,14 @@ func TestSaveProgress_EmitsProgressAndCompleteEvents(t *testing.T) {
 
 func TestSaveProgress_NotCompletedSkipsCompleteEvent(t *testing.T) {
 	lessons := &stubLessonRepo{
-		lesson: domain.Lesson{ID: "lesson-1", CourseID: "course-1"},
+		lesson: domain.Lesson{ID: testLessonID, CourseID: testCourseID},
 		media:  []domain.Media{{DurationMs: 60_000}},
 	}
 	sink := &captureSink{}
 	recorder := usecase.NewAnalyticsRecorder(domain.Source{Env: "test"}, sink)
 	h := NewPlayerHandler(usecase.NewPlayerUseCase(lessons, &stubProgressRepo{store: map[string]domain.ProgressState{}}), recorder)
 
-	r := withClaimsAndPath(http.MethodPost, `{"progress_seconds":30,"completed":false}`, "course-1", "lesson-1")
+	r := withClaimsAndPath(http.MethodPost, `{"progress_seconds":30,"completed":false}`, testLessonID)
 	r = r.WithContext(domain.ContextWithLogContext(r.Context(), domain.LogContext{Consent: domain.Consent{Analytics: true}}))
 
 	h.SaveProgress(httptest.NewRecorder(), r)

@@ -19,7 +19,7 @@ type HelloResponse struct {
 func HelloHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(HelloResponse{Message: "Hello, World!"})
+	_ = json.NewEncoder(w).Encode(HelloResponse{Message: "Hello, World!"})
 }
 
 // DBHealthHandler handles database health checks
@@ -28,10 +28,10 @@ func DBHealthHandler(w http.ResponseWriter, r *http.Request) {
 
 	if database.DB == nil || database.DB.Ping() != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "disconnected"})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "connected"})
 }
 
 type CatalogHandler struct {

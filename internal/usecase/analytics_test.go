@@ -79,7 +79,7 @@ func TestRecord_ConsentGateDropsPIIButKeepsOperational(t *testing.T) {
 	rec := NewAnalyticsRecorder(domain.Source{}, sink)
 
 	ctx := ctxWithLog(domain.LogContext{Consent: domain.Consent{Analytics: false}})
-	rec.Record(ctx, "catalog.search", domain.PIILow, nil)        // dropped: no consent + PII
+	rec.Record(ctx, "catalog.search", domain.PIILow, nil)         // dropped: no consent + PII
 	rec.Record(ctx, domain.EventAccessCheck, domain.PIINone, nil) // kept: operational
 
 	if len(sink.events) != 1 {
