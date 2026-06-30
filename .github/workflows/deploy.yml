@@ -11,5 +11,16 @@ jobs:
       - name: Pull latest changes
         run: cd /home/runner/backend && git pull
 
+      - name: Start database
+        run: cd /home/runner/infra && docker compose up -d postgres
+
+      - name: Run database migrations
+        run: |
+          cd /home/runner/backend
+          set -a; . /home/runner/infra/.env; set +a
+          docker run --rm -v "$(pwd)/migrations:/migrations" --network infra_default \
+            migrate/migrate -path=/migrations \
+            -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" up
+
       - name: Restart containers
         run: cd /home/runner/infra && docker compose up -d --build

@@ -10,10 +10,11 @@ import (
 // Handlers groups the per-domain HTTP handlers so the router assembly stays a
 // single dependency bundle rather than a long positional parameter list.
 type Handlers struct {
-	Catalog  *CatalogHandler
-	Auth     *AuthHandler
-	Purchase *PurchaseHandler
-	Player   *PlayerHandler
+	Catalog   *CatalogHandler
+	Auth      *AuthHandler
+	Purchase  *PurchaseHandler
+	Player    *PlayerHandler
+	Analytics *AnalyticsHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -55,6 +56,9 @@ func NewRouter(
 		"GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress",
 		auth(guard(h.Player.GetProgress)),
 	)
+
+	// Teacher analytics: ownership + role are enforced inside the handler.
+	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", auth(h.Analytics.TeacherDashboard))
 
 	return WithLogContext(mux)
 }
