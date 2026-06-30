@@ -151,6 +151,46 @@ curl -X GET "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<le
   -H "Authorization: Bearer <jwt>"
 ```
 
+## End-to-end test
+
+`e2e/journey_test.go` covers the primary learner path in a single test against a
+real Postgres instance and a full HTTP stack - no mocks, no stubs:
+
+Steps:
+1. Request: `POST /api/v1/auth/register`
+   Asserted: 201, JWT token returned, wallet starts at 1 000.00
+2. Request: `POST /api/v1/purchase/checkout` (sandbox)
+   Asserted: 200, `status=succeeded`, wallet debited by course price
+3. Request: `GET /api/v1/player/courses/{id}/lessons/{id}`
+   Asserted: 200 (not 403) - `RequireEntitlement` allows access after purchase; `content_url` present
+4. Request: `POST …/progress` `{"progress_seconds":60}`
+   Asserted: 200, echoes `progress_seconds=60`
+5. Request: `GET …/progress`
+   Asserted: 200, `progress_seconds=60` - confirms the row persisted in Postgres
+
+Before each run `scripts/seed.sql` is applied to reset and reload all fixture
+tables, so the test always starts from a known state (courses, lessons, and media
+are required to exist). A fresh student account is registered with a timestamped
+email so it never collides with seed users.
+
+**Prerequisites:** the Docker Compose stack must be running (see _Start the Database_ above), which exposes Postgres on host port **5433**.
+
+```bash
+# from backend/
+go test -tags=e2e -v ./e2e/
+```
+
+The test is gated by the `e2e` build tag, so it is excluded from the normal
+`go test ./...` run. If Postgres is not reachable it skips (`SKIP`) rather than
+failing, so it is safe to run in environments without a database.
+
+Override connection defaults if your setup differs:
+```bash
+DB_HOST=localhost DB_PORT=5433 POSTGRES_USER=admin POSTGRES_PASSWORD=qwerty \
+  POSTGRES_DB=db JWT_SECRET=any-local-secret \
+  go test -tags=e2e -v ./e2e/
+```
+
 ## Analytics Event Logging
 
 The server emits a structured analytics event stream implementing
