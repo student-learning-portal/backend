@@ -50,6 +50,10 @@ func (s *middlewareEntRepo) LogAccessCheck(_ context.Context, _ domain.AccessChe
 	return nil
 }
 
+func (s *middlewareEntRepo) GetEnrolledCourses(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
+}
+
 // nextCapture records whether the next handler was called.
 type nextCapture struct{ called bool }
 

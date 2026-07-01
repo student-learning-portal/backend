@@ -113,6 +113,9 @@ linters:
           - gocritic
           - lll
           - bodyclose
+          # Repeated fixture literals (ids, emails, tokens) are normal in tests;
+          # turning each into a named constant hurts readability more than helps.
+          - goconst
       - path: (.+)\.go$
         text: should have comment
       - path: (.+)\.go$
