@@ -52,6 +52,10 @@ func (s *paymentStubEntRepo) LogAccessCheck(_ context.Context, _ domain.AccessCh
 	return nil
 }
 
+func (s *paymentStubEntRepo) GetEnrolledCourses(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
+}
+
 // paymentStubCatRepo implements domain.CatalogRepository for payment handler tests.
 type paymentStubCatRepo struct {
 	course    domain.Course
@@ -64,6 +68,10 @@ func (s *paymentStubCatRepo) GetCourses(_ domain.CourseListParams) ([]domain.Cou
 
 func (s *paymentStubCatRepo) GetByID(_ context.Context, _ string) (domain.Course, error) {
 	return s.course, s.courseErr
+}
+
+func (s *paymentStubCatRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
 }
 
 // paymentStubUserRepo implements domain.UserRepository for payment handler tests.
@@ -82,6 +90,17 @@ func (s *paymentStubUserRepo) DeductBalance(_ context.Context, _ string, _ float
 
 func (s *paymentStubUserRepo) CreditBalance(_ context.Context, _ string, _ float64) (float64, error) {
 	return s.balance, nil
+}
+
+func (s *paymentStubUserRepo) UpdateEmail(_ context.Context, _, _ string) (domain.User, error) {
+	return domain.User{}, nil
+}
+func (s *paymentStubUserRepo) UpdatePasswordHash(_ context.Context, _, _ string) error { return nil }
+func (s *paymentStubUserRepo) UpdateFullName(_ context.Context, _, _ string) (domain.User, error) {
+	return domain.User{}, nil
+}
+func (s *paymentStubUserRepo) UpdateAvatarURL(_ context.Context, _, _ string) (domain.User, error) {
+	return domain.User{}, nil
 }
 
 func newPurchaseHandler(ent *paymentStubEntRepo, cat *paymentStubCatRepo, usr *paymentStubUserRepo) *PurchaseHandler {

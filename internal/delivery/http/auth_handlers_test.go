@@ -40,6 +40,22 @@ func (s *authStubUserRepo) CreditBalance(_ context.Context, _ string, _ float64)
 	return 0, nil
 }
 
+func (s *authStubUserRepo) UpdateEmail(_ context.Context, _, _ string) (domain.User, error) {
+	return s.user, s.getErr
+}
+
+func (s *authStubUserRepo) UpdatePasswordHash(_ context.Context, _, _ string) error {
+	return s.getErr
+}
+
+func (s *authStubUserRepo) UpdateFullName(_ context.Context, _, _ string) (domain.User, error) {
+	return s.user, s.getErr
+}
+
+func (s *authStubUserRepo) UpdateAvatarURL(_ context.Context, _, _ string) (domain.User, error) {
+	return s.user, s.getErr
+}
+
 // authStubTokenService implements domain.TokenService for auth handler tests.
 type authStubTokenService struct {
 	token    string

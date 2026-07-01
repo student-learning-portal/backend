@@ -25,6 +25,10 @@ func (c *catalogHandlerRepo) GetByID(_ context.Context, _ string) (domain.Course
 	return domain.Course{}, nil
 }
 
+func (c *catalogHandlerRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return c.courses, c.coursesErr
+}
+
 // --- HelloHandler ---
 
 func TestHelloHandler_ReturnsHelloWorld(t *testing.T) {
@@ -60,7 +64,7 @@ func TestGetCourses_ReturnsCourses(t *testing.T) {
 			{ID: "c2", Title: "Science", Subject: "science"},
 		},
 	}
-	h := NewCatalogHandler(usecase.NewCatalogUseCase(repo))
+	h := NewCatalogHandler(usecase.NewCatalogUseCase(repo, &stubLessonRepo{}))
 
 	w := httptest.NewRecorder()
 	h.GetCourses(w, httptest.NewRequest(http.MethodGet, "http://x/catalog/courses", nil))
@@ -79,7 +83,7 @@ func TestGetCourses_ReturnsCourses(t *testing.T) {
 
 func TestGetCourses_EmptyOnRepoError(t *testing.T) {
 	repo := &catalogHandlerRepo{coursesErr: domain.ErrCourseNotFound}
-	h := NewCatalogHandler(usecase.NewCatalogUseCase(repo))
+	h := NewCatalogHandler(usecase.NewCatalogUseCase(repo, &stubLessonRepo{}))
 
 	w := httptest.NewRecorder()
 	h.GetCourses(w, httptest.NewRequest(http.MethodGet, "http://x/catalog/courses", nil))
@@ -98,7 +102,7 @@ func TestGetCourses_EmptyOnRepoError(t *testing.T) {
 
 func TestGetCourses_QueryParamsParsed(t *testing.T) {
 	dest := &domain.CourseListParams{}
-	h := NewCatalogHandler(usecase.NewCatalogUseCase(&paramCaptureCatalogRepo{dest: dest}))
+	h := NewCatalogHandler(usecase.NewCatalogUseCase(&paramCaptureCatalogRepo{dest: dest}, &stubLessonRepo{}))
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "http://x/catalog?search=go&subject=programming&page=2&page_size=5&min_price=10&max_price=100", nil)
@@ -129,7 +133,7 @@ func TestGetCourses_QueryParamsParsed(t *testing.T) {
 
 func TestGetCourses_DefaultPagination(t *testing.T) {
 	dest := &domain.CourseListParams{}
-	h := NewCatalogHandler(usecase.NewCatalogUseCase(&paramCaptureCatalogRepo{dest: dest}))
+	h := NewCatalogHandler(usecase.NewCatalogUseCase(&paramCaptureCatalogRepo{dest: dest}, &stubLessonRepo{}))
 
 	w := httptest.NewRecorder()
 	h.GetCourses(w, httptest.NewRequest(http.MethodGet, "http://x/catalog", nil))
@@ -157,4 +161,8 @@ func (p *paramCaptureCatalogRepo) GetCourses(params domain.CourseListParams) ([]
 
 func (p *paramCaptureCatalogRepo) GetByID(_ context.Context, _ string) (domain.Course, error) {
 	return domain.Course{}, nil
+}
+
+func (p *paramCaptureCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
 }

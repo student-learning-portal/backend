@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -88,10 +89,18 @@ func TestCoreJourney(t *testing.T) {
 	}
 }
 
-// openDB opens a Postgres connection with the same env vars the app reads
-// Skips the test when the database is not reachable
+// openDB opens a Postgres connection with the same env vars the app reads.
+// Skips the test unless e2e is explicitly enabled (SLP_E2E=1) and the database
+// is reachable. The opt-in guard matters because these tests TRUNCATE every
+// table: without it, a bare `go test ./...` would wipe whatever Postgres the
+// default DB_* values point at (e.g. a local dev database on :5433). The
+// scripts/integration-test.sh runner sets SLP_E2E=1 and points DB_* at a
+// throwaway container.
 func openDB(t *testing.T) *sql.DB {
 	t.Helper()
+	if os.Getenv("SLP_E2E") != "1" {
+		t.Skip("e2e disabled: set SLP_E2E=1 and point DB_* at a throwaway database (see scripts/integration-test.sh)")
+	}
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		getenv("DB_HOST", "localhost"),
@@ -127,7 +136,9 @@ func applySeed(t *testing.T, db *sql.DB) {
 }
 
 // buildServer wires the full dependency graph (mirroring internal/app.go) and
-// returns a test HTTP server backed by real Postgres repos
+// returns a test HTTP server backed by real Postgres repos. All handlers are
+// wired (catalog, auth, purchase, player, user-courses, profile, analytics) so
+// any route can be exercised end to end.
 func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	t.Helper()
 
@@ -140,14 +151,24 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	entitlementRepo := database.NewPostgresEntitlementRepository(db)
 	lessonRepo := database.NewPostgresLessonRepository(db)
 	progressRepo := database.NewPostgresProgressRepository(db)
+	analyticsRepo := database.NewPostgresAnalyticsRepository(db)
 
-	handlers := delivery.Handlers{
-		Catalog:  delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo, lessonRepo)),
-		Auth:     delivery.NewAuthHandler(usecase.NewAuthUseCase(userRepo, tokens), analytics),
-		Purchase: delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
-		Player:   delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
+	uploadsDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
+		t.Fatalf("create uploads dir: %v", err)
 	}
-	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, t.TempDir()))
+
+	authUC := usecase.NewAuthUseCase(userRepo, tokens)
+	handlers := delivery.Handlers{
+		Catalog:     delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo, lessonRepo)),
+		Auth:        delivery.NewAuthHandler(authUC, analytics),
+		Purchase:    delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
+		Player:      delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
+		UserCourses: delivery.NewUserCoursesHandler(usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)),
+		Profile:     delivery.NewProfileHandler(authUC, uploadsDir),
+		Analytics:   delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
+	}
+	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir))
 }
 
 // - response DTOs (mirror the handler structs) ----------------------------

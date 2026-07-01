@@ -25,11 +25,15 @@ func (s *stubCatalogRepository) GetByID(_ context.Context, _ string) (domain.Cou
 	return s.course, s.courseErr
 }
 
+func (s *stubCatalogRepository) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return s.courses, s.coursesErr
+}
+
 func TestListCourses_ReturnsCourses(t *testing.T) {
 	repo := &stubCatalogRepository{
 		courses: []domain.Course{{ID: "c1", Title: "Math"}, {ID: "c2", Title: "Science"}},
 	}
-	uc := NewCatalogUseCase(repo)
+	uc := NewCatalogUseCase(repo, &fakeLessonRepo{})
 	courses := uc.ListCourses(domain.CourseListParams{})
 	if len(courses) != 2 {
 		t.Errorf("len = %d, want 2", len(courses))
@@ -41,7 +45,7 @@ func TestListCourses_ReturnsCourses(t *testing.T) {
 
 func TestListCourses_ErrorReturnsEmpty(t *testing.T) {
 	repo := &stubCatalogRepository{coursesErr: errors.New("db down")}
-	uc := NewCatalogUseCase(repo)
+	uc := NewCatalogUseCase(repo, &fakeLessonRepo{})
 	courses := uc.ListCourses(domain.CourseListParams{})
 	if len(courses) != 0 {
 		t.Errorf("len = %d, want 0 on error", len(courses))
@@ -49,7 +53,7 @@ func TestListCourses_ErrorReturnsEmpty(t *testing.T) {
 }
 
 func TestListCourses_EmptyDatabase(t *testing.T) {
-	uc := NewCatalogUseCase(&stubCatalogRepository{})
+	uc := NewCatalogUseCase(&stubCatalogRepository{}, &fakeLessonRepo{})
 	courses := uc.ListCourses(domain.CourseListParams{})
 	if len(courses) != 0 {
 		t.Errorf("expected 0 courses for empty catalog, got %d", len(courses))
@@ -60,7 +64,7 @@ func TestListCourses_SingleCourse(t *testing.T) {
 	repo := &stubCatalogRepository{
 		courses: []domain.Course{{ID: "c1", Title: "Intro to Go", Subject: "programming"}},
 	}
-	uc := NewCatalogUseCase(repo)
+	uc := NewCatalogUseCase(repo, &fakeLessonRepo{})
 	courses := uc.ListCourses(domain.CourseListParams{Search: "Go", Subject: "programming"})
 	if len(courses) != 1 {
 		t.Fatalf("len = %d, want 1", len(courses))
