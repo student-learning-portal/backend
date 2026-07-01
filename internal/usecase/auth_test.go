@@ -59,6 +59,7 @@ type stubAuthTokenService struct {
 }
 
 func (s *stubAuthTokenService) Generate(_ domain.User) (string, error) { return s.token, s.tokenErr }
+
 func (s *stubAuthTokenService) Verify(_ string) (domain.Claims, error) { return domain.Claims{}, nil }
 
 func hashForTest(t *testing.T, pw string) string {

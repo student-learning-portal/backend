@@ -16,16 +16,21 @@ type stubPaymentUserRepo struct {
 }
 
 func (s *stubPaymentUserRepo) Create(_ domain.User) (domain.User, error) { return domain.User{}, nil }
-func (s *stubPaymentUserRepo) GetByEmail(_ string) (domain.User, error)  { return domain.User{}, nil }
-func (s *stubPaymentUserRepo) GetByID(_ string) (domain.User, error)     { return domain.User{}, nil }
+
+func (s *stubPaymentUserRepo) GetByEmail(_ string) (domain.User, error) { return domain.User{}, nil }
+
+func (s *stubPaymentUserRepo) GetByID(_ string) (domain.User, error) { return domain.User{}, nil }
 
 func (s *stubPaymentUserRepo) UpdateEmail(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
+
 func (s *stubPaymentUserRepo) UpdatePasswordHash(_ context.Context, _, _ string) error { return nil }
+
 func (s *stubPaymentUserRepo) UpdateFullName(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
+
 func (s *stubPaymentUserRepo) UpdateAvatarURL(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }

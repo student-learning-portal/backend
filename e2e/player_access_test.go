@@ -35,7 +35,7 @@ type progressData struct {
 // as in production.
 func (e *testEnv) grantAccess(token, courseID string) {
 	e.t.Helper()
-	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", token, map[string]any{"course_id": courseID})
+	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", token, courseIDBody{CourseID: courseID})
 	e.requireStatus(resp, http.StatusOK)
 }
 
@@ -64,7 +64,7 @@ func TestPlayer_EntitledUserGetsContentAndAuditAllow(t *testing.T) {
 	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
 	courseID := e.insertCourse(teacher, "Go", "Programming", 49.99, "published")
 	lessonID := e.insertLesson(courseID, "Intro", "video", 1)
-	e.insertMedia(lessonID, "https://cdn.example.com/intro.mp4", 120000)
+	e.insertMedia(lessonID, 120000)
 	e.insertMaterial(lessonID, "Slides", "https://cdn.example.com/intro.pdf", "pdf")
 
 	e.grantAccess(studentTok, courseID)
@@ -73,7 +73,7 @@ func TestPlayer_EntitledUserGetsContentAndAuditAllow(t *testing.T) {
 	e.requireStatus(resp, http.StatusOK)
 	var ld lessonData
 	e.decode(resp, &ld)
-	if ld.ContentURL != "https://cdn.example.com/intro.mp4" {
+	if ld.ContentURL != testMediaURL {
 		t.Errorf("content_url = %q", ld.ContentURL)
 	}
 	if ld.DurationSeconds != 120 {
@@ -118,7 +118,7 @@ func TestPlayer_ProgressIsScopedPerUser(t *testing.T) {
 	_, bobTok := e.register("bob@example.com", "Bob", domain.RoleStudent)
 	courseID := e.insertCourse(teacher, "Go", "Programming", 10, "published")
 	lessonID := e.insertLesson(courseID, "Intro", "video", 1)
-	e.insertMedia(lessonID, "https://cdn.example.com/intro.mp4", 200000) // 200s
+	e.insertMedia(lessonID, 200000) // 200s
 
 	e.grantAccess(aliceTok, courseID)
 	e.grantAccess(bobTok, courseID)

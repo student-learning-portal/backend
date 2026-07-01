@@ -63,6 +63,7 @@ type authStubTokenService struct {
 }
 
 func (s *authStubTokenService) Generate(_ domain.User) (string, error) { return s.token, s.tokenErr }
+
 func (s *authStubTokenService) Verify(_ string) (domain.Claims, error) { return domain.Claims{}, nil }
 
 func newAuthHandler(repo *authStubUserRepo, tokens *authStubTokenService) *AuthHandler {

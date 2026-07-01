@@ -19,7 +19,7 @@ func TestChain_CheckoutAccessPlayProgressRefund(t *testing.T) {
 
 	courseID := e.insertCourse(teacher, "Go Mastery", "Programming", 100.00, "published")
 	lessonID := e.insertLesson(courseID, "Intro", "video", 1)
-	e.insertMedia(lessonID, "https://cdn.example.com/intro.mp4", 120000) // 120s
+	e.insertMedia(lessonID, 120000) // 120s
 
 	lessonPath := "/api/v1/player/courses/" + courseID + "/lessons/" + lessonID
 	progressPath := lessonPath + "/progress"
@@ -31,7 +31,7 @@ func TestChain_CheckoutAccessPlayProgressRefund(t *testing.T) {
 	}
 
 	// 2. Checkout: succeeds and deducts the price from the 1000 starting wallet.
-	checkout := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, map[string]any{"course_id": courseID})
+	checkout := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, courseIDBody{CourseID: courseID})
 	e.requireStatus(checkout, http.StatusOK)
 	var co struct {
 		Status  string  `json:"status"`
@@ -82,7 +82,7 @@ func TestChain_CheckoutAccessPlayProgressRefund(t *testing.T) {
 	}
 
 	// 7. Refund: wallet restored, status refunded.
-	refund := e.do(http.MethodPost, "/api/v1/purchase/refund", studentTok, map[string]any{"course_id": courseID})
+	refund := e.do(http.MethodPost, "/api/v1/purchase/refund", studentTok, courseIDBody{CourseID: courseID})
 	e.requireStatus(refund, http.StatusOK)
 	var rf struct {
 		Status  string  `json:"status"`
@@ -101,7 +101,7 @@ func TestChain_CheckoutAccessPlayProgressRefund(t *testing.T) {
 
 	// 9. Double refund: no active grant remains → 404.
 	e.requireStatus(
-		e.do(http.MethodPost, "/api/v1/purchase/refund", studentTok, map[string]any{"course_id": courseID}),
+		e.do(http.MethodPost, "/api/v1/purchase/refund", studentTok, courseIDBody{CourseID: courseID}),
 		http.StatusNotFound,
 	)
 }
@@ -113,7 +113,7 @@ func TestChain_CheckoutInsufficientFunds(t *testing.T) {
 	// Price above the 1000 starting wallet.
 	courseID := e.insertCourse(teacher, "Expensive", "Programming", 5000.00, "published")
 
-	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, map[string]any{"course_id": courseID})
+	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, courseIDBody{CourseID: courseID})
 	e.requireStatus(resp, http.StatusPaymentRequired) // 402
 	if msg := e.errorMessage(resp); msg != "insufficient wallet balance" {
 		t.Errorf("error = %q", msg)
@@ -123,7 +123,7 @@ func TestChain_CheckoutInsufficientFunds(t *testing.T) {
 func TestChain_CheckoutUnknownCourseIsNotFound(t *testing.T) {
 	e := newTestEnv(t)
 	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
-	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, map[string]any{"course_id": uuid.NewString()})
+	resp := e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, courseIDBody{CourseID: uuid.NewString()})
 	e.requireStatus(resp, http.StatusNotFound)
 }
 
@@ -135,21 +135,21 @@ func TestChain_WebhookGrantsThenRevokes(t *testing.T) {
 	studentID, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
 	courseID := e.insertCourse(teacher, "Go", "Programming", 49.99, "published")
 	lessonID := e.insertLesson(courseID, "Intro", "video", 1)
-	e.insertMedia(lessonID, "https://cdn.example.com/intro.mp4", 60000)
+	e.insertMedia(lessonID, 60000)
 	lessonPath := "/api/v1/player/courses/" + courseID + "/lessons/" + lessonID
 
 	txn := uuid.NewString()
 
 	// Gateway confirms payment: webhook is public (no auth).
-	ok := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", map[string]any{
-		"transaction_id": txn, "status": "SUCCESS", "user_id": studentID, "course_id": courseID,
+	ok := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", webhookBody{
+		TransactionID: txn, Status: "SUCCESS", UserID: studentID, CourseID: courseID,
 	})
 	e.requireStatus(ok, http.StatusOK)
 	e.requireStatus(e.do(http.MethodGet, lessonPath, studentTok, nil), http.StatusOK)
 
 	// Gateway reports a refund: access is revoked.
-	ref := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", map[string]any{
-		"transaction_id": txn, "status": "REFUNDED", "user_id": studentID, "course_id": courseID,
+	ref := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", webhookBody{
+		TransactionID: txn, Status: "REFUNDED", UserID: studentID, CourseID: courseID,
 	})
 	e.requireStatus(ref, http.StatusOK)
 	e.requireStatus(e.do(http.MethodGet, lessonPath, studentTok, nil), http.StatusForbidden)
@@ -157,8 +157,8 @@ func TestChain_WebhookGrantsThenRevokes(t *testing.T) {
 
 func TestChain_WebhookUnknownStatusIsBadRequest(t *testing.T) {
 	e := newTestEnv(t)
-	resp := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", map[string]any{
-		"transaction_id": uuid.NewString(), "status": "bogus", "user_id": uuid.NewString(), "course_id": uuid.NewString(),
+	resp := e.do(http.MethodPost, "/api/v1/purchase/webhook", "", webhookBody{
+		TransactionID: uuid.NewString(), Status: "bogus", UserID: uuid.NewString(), CourseID: uuid.NewString(),
 	})
 	e.requireStatus(resp, http.StatusBadRequest)
 }

@@ -81,8 +81,10 @@ type paymentStubUserRepo struct {
 }
 
 func (s *paymentStubUserRepo) Create(_ domain.User) (domain.User, error) { return domain.User{}, nil }
-func (s *paymentStubUserRepo) GetByEmail(_ string) (domain.User, error)  { return domain.User{}, nil }
-func (s *paymentStubUserRepo) GetByID(_ string) (domain.User, error)     { return domain.User{}, nil }
+
+func (s *paymentStubUserRepo) GetByEmail(_ string) (domain.User, error) { return domain.User{}, nil }
+
+func (s *paymentStubUserRepo) GetByID(_ string) (domain.User, error) { return domain.User{}, nil }
 
 func (s *paymentStubUserRepo) DeductBalance(_ context.Context, _ string, _ float64) (float64, error) {
 	return s.balance, s.deductErr
@@ -95,10 +97,13 @@ func (s *paymentStubUserRepo) CreditBalance(_ context.Context, _ string, _ float
 func (s *paymentStubUserRepo) UpdateEmail(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
+
 func (s *paymentStubUserRepo) UpdatePasswordHash(_ context.Context, _, _ string) error { return nil }
+
 func (s *paymentStubUserRepo) UpdateFullName(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
+
 func (s *paymentStubUserRepo) UpdateAvatarURL(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }

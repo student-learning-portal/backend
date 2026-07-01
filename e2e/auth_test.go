@@ -10,8 +10,8 @@ import (
 func TestAuth_RegisterLoginMeRoundTrip(t *testing.T) {
 	e := newTestEnv(t)
 
-	reg := e.do(http.MethodPost, "/api/v1/auth/register", "", map[string]any{
-		"email": "alice@example.com", "password": testPassword, "full_name": "Alice", "role": "student",
+	reg := e.do(http.MethodPost, "/api/v1/auth/register", "", registerBody{
+		Email: "alice@example.com", Password: testPassword, FullName: "Alice", Role: string(domain.RoleStudent),
 	})
 	e.requireStatus(reg, http.StatusCreated)
 	var regOut struct {
@@ -31,8 +31,8 @@ func TestAuth_RegisterLoginMeRoundTrip(t *testing.T) {
 		t.Errorf("new wallet balance = %v, want 1000", regOut.User.Balance)
 	}
 
-	login := e.do(http.MethodPost, "/api/v1/auth/login", "", map[string]any{
-		"email": "alice@example.com", "password": testPassword,
+	login := e.do(http.MethodPost, "/api/v1/auth/login", "", loginBody{
+		Email: "alice@example.com", Password: testPassword,
 	})
 	e.requireStatus(login, http.StatusOK)
 	var loginOut struct {
@@ -60,8 +60,8 @@ func TestAuth_DuplicateEmailIsConflict_CaseInsensitive(t *testing.T) {
 	e.register("bob@example.com", "Bob", domain.RoleStudent)
 
 	// Same email, different case + whitespace — normalized server-side, so it collides.
-	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", map[string]any{
-		"email": "  BOB@example.com  ", "password": testPassword, "full_name": "Bob 2", "role": "student",
+	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", registerBody{
+		Email: "  BOB@example.com  ", Password: testPassword, FullName: "Bob 2", Role: string(domain.RoleStudent),
 	})
 	e.requireStatus(resp, http.StatusConflict)
 	if msg := e.errorMessage(resp); msg != "email already registered" {
@@ -73,8 +73,8 @@ func TestAuth_LoginWrongPasswordIsUnauthorized(t *testing.T) {
 	e := newTestEnv(t)
 	e.register("carol@example.com", "Carol", domain.RoleStudent)
 
-	resp := e.do(http.MethodPost, "/api/v1/auth/login", "", map[string]any{
-		"email": "carol@example.com", "password": "wrong-password",
+	resp := e.do(http.MethodPost, "/api/v1/auth/login", "", loginBody{
+		Email: "carol@example.com", Password: "wrong-password",
 	})
 	e.requireStatus(resp, http.StatusUnauthorized)
 	if msg := e.errorMessage(resp); msg != "invalid email or password" {
@@ -84,8 +84,8 @@ func TestAuth_LoginWrongPasswordIsUnauthorized(t *testing.T) {
 
 func TestAuth_RegisterValidationRejectsShortPassword(t *testing.T) {
 	e := newTestEnv(t)
-	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", map[string]any{
-		"email": "dan@example.com", "password": "short", "full_name": "Dan", "role": "student",
+	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", registerBody{
+		Email: "dan@example.com", Password: "short", FullName: "Dan", Role: string(domain.RoleStudent),
 	})
 	e.requireStatus(resp, http.StatusBadRequest)
 }

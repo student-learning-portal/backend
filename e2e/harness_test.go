@@ -14,7 +14,34 @@ import (
 	"github.com/student-learning-portal/backend/internal/security"
 )
 
-const testPassword = "Test1234!"
+const (
+	testPassword = "Test1234!"
+	testMediaURL = "https://cdn.example.com/intro.mp4"
+)
+
+// Typed request bodies keep the JSON field names in one place (struct tags)
+// rather than repeating map string keys across every test.
+type (
+	registerBody struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		FullName string `json:"full_name"`
+		Role     string `json:"role"`
+	}
+	loginBody struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	courseIDBody struct {
+		CourseID string `json:"course_id"`
+	}
+	webhookBody struct {
+		TransactionID string `json:"transaction_id"`
+		Status        string `json:"status"`
+		UserID        string `json:"user_id"`
+		CourseID      string `json:"course_id"`
+	}
+)
 
 // testEnv is a ready-to-drive API for the broader endpoint-level tests: a clean
 // database, the full router behind an httptest server, and the token service the
@@ -123,11 +150,11 @@ func (e *testEnv) token(userID string, role domain.Role) string {
 // its id and a freshly issued bearer token.
 func (e *testEnv) register(email, fullName string, role domain.Role) (userID, token string) {
 	e.t.Helper()
-	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", map[string]any{
-		"email":     email,
-		"password":  testPassword,
-		"full_name": fullName,
-		"role":      string(role),
+	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", registerBody{
+		Email:    email,
+		Password: testPassword,
+		FullName: fullName,
+		Role:     string(role),
 	})
 	e.requireStatus(resp, http.StatusCreated)
 	var out struct {
@@ -173,11 +200,11 @@ func (e *testEnv) insertLesson(courseID, title, lessonType string, position int)
 	return id
 }
 
-func (e *testEnv) insertMedia(lessonID, url string, durationMs int) {
+func (e *testEnv) insertMedia(lessonID string, durationMs int) {
 	e.t.Helper()
 	if _, err := e.db.Exec(
 		`INSERT INTO media (lesson_id, url, duration_ms, media_type) VALUES ($1, $2, $3, 'video')`,
-		lessonID, url, durationMs,
+		lessonID, testMediaURL, durationMs,
 	); err != nil {
 		e.t.Fatalf("insert media: %v", err)
 	}
