@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/student-learning-portal/backend/internal/domain"
 )
 
@@ -60,14 +61,22 @@ func (r *PostgresEntitlementRepository) UpdatePaymentStatus(ctx context.Context,
 	return nil
 }
 
+// CreateGrant inserts an access grant. The partial unique index
+// ux_access_grant_one_active (actor_id, course_id WHERE revoked_at IS NULL)
+// guarantees only one active grant per course exists, so a concurrent
+// checkout for the same course surfaces here as a unique violation, which
+// is reported as domain.ErrAlreadyPurchased for the usecase to compensate.
 func (r *PostgresEntitlementRepository) CreateGrant(ctx context.Context, g domain.AccessGrant) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO access_grant (grant_id, actor_id, course_id, txn_id, granted_at)
-		 VALUES ($1, $2, $3, $4, $5)
-		 ON CONFLICT (actor_id, course_id, txn_id) DO NOTHING`,
+		 VALUES ($1, $2, $3, $4, $5)`,
 		g.GrantID, g.ActorID, g.CourseID, g.TxnID, g.GrantedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return domain.ErrAlreadyPurchased
+		}
 		return fmt.Errorf("create grant: %w", err)
 	}
 	return nil
@@ -134,6 +143,40 @@ func (r *PostgresEntitlementRepository) GetEnrolledCourses(ctx context.Context, 
 	defer rows.Close()
 
 	return scanCourseRows(rows)
+}
+
+// ListPayments returns the buyer's full payment history (purchases and
+// refunds), newest first, enriched with the course title for display.
+func (r *PostgresEntitlementRepository) ListPayments(ctx context.Context, actorID string) ([]domain.PaymentHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT p.txn_id, p.cart_id, p.actor_id, p.course_id, p.amount, p.currency, p.status, p.sandbox, p.created_at,
+		        COALESCE(c.title, '')
+		 FROM payment p
+		 LEFT JOIN courses c ON c.id::text = p.course_id
+		 WHERE p.actor_id = $1
+		 ORDER BY p.created_at DESC`,
+		actorID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list payments: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []domain.PaymentHistoryEntry
+	for rows.Next() {
+		var e domain.PaymentHistoryEntry
+		if err := rows.Scan(
+			&e.TxnID, &e.CartID, &e.ActorID, &e.CourseID, &e.Amount, &e.Currency, &e.Status, &e.Sandbox, &e.CreatedAt,
+			&e.CourseTitle,
+		); err != nil {
+			return nil, fmt.Errorf("scan payment history: %w", err)
+		}
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list payments: %w", err)
+	}
+	return entries, nil
 }
 
 func (r *PostgresEntitlementRepository) LogAccessCheck(ctx context.Context, l domain.AccessCheckLog) error {

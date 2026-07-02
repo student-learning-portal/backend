@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/usecase"
@@ -63,6 +64,8 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusPaymentRequired, "insufficient wallet balance")
 		case errors.Is(err, domain.ErrUserNotFound):
 			writeError(w, http.StatusUnauthorized, "user not found")
+		case errors.Is(err, domain.ErrAlreadyPurchased):
+			writeError(w, http.StatusConflict, "course already purchased")
 		default:
 			writeError(w, http.StatusInternalServerError, "checkout failed")
 		}
@@ -160,6 +163,50 @@ func (h *PurchaseHandler) Refund(w http.ResponseWriter, r *http.Request) {
 		Currency:      payment.Currency,
 		Balance:       result.Balance,
 	})
+}
+
+type historyEntryResponse struct {
+	TransactionID string    `json:"transaction_id"`
+	CourseID      string    `json:"course_id"`
+	CourseTitle   string    `json:"course_title"`
+	Amount        float64   `json:"amount"`
+	Currency      string    `json:"currency"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type historyResponse struct {
+	Transactions []historyEntryResponse `json:"transactions"`
+}
+
+// History handles GET /api/v1/purchase/history
+func (h *PurchaseHandler) History(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication")
+		return
+	}
+
+	entries, err := h.paymentUseCase.History(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load payment history")
+		return
+	}
+
+	transactions := make([]historyEntryResponse, 0, len(entries))
+	for _, e := range entries {
+		transactions = append(transactions, historyEntryResponse{
+			TransactionID: e.TxnID,
+			CourseID:      e.CourseID,
+			CourseTitle:   e.CourseTitle,
+			Amount:        e.Amount,
+			Currency:      e.Currency,
+			Status:        e.Status,
+			CreatedAt:     e.CreatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, historyResponse{Transactions: transactions})
 }
 
 type webhookRequest struct {

@@ -430,6 +430,46 @@ paths:
           description: Insufficient virtual wallet balance
         '404':
           description: Course not found
+        '409':
+          description: Course already purchased (active grant already exists)
+
+  /purchase/history:
+    get:
+      summary: List the caller's payment history (purchases and refunds), newest first
+      tags:
+        - Purchase
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        transaction_id:
+                          type: string
+                        course_id:
+                          type: string
+                        course_title:
+                          type: string
+                        amount:
+                          type: number
+                        currency:
+                          type: string
+                        status:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: Missing or invalid bearer token
 
   /purchase/refund:
     post:

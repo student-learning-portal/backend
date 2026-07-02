@@ -1,0 +1,1 @@
+DROP INDEX ux_access_grant_one_active;

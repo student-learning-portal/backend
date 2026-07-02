@@ -10,9 +10,11 @@ import (
 
 // stubPaymentUserRepo implements domain.UserRepository with balance control for payment tests.
 type stubPaymentUserRepo struct {
-	balance   float64
-	deductErr error
-	creditErr error
+	balance      float64
+	deductErr    error
+	creditErr    error
+	deductCalled bool
+	creditCalled bool
 }
 
 func (s *stubPaymentUserRepo) Create(_ domain.User) (domain.User, error) { return domain.User{}, nil }
@@ -36,6 +38,7 @@ func (s *stubPaymentUserRepo) UpdateAvatarURL(_ context.Context, _, _ string) (d
 }
 
 func (s *stubPaymentUserRepo) DeductBalance(_ context.Context, _ string, _ float64) (float64, error) {
+	s.deductCalled = true
 	if s.deductErr != nil {
 		return 0, s.deductErr
 	}
@@ -43,6 +46,7 @@ func (s *stubPaymentUserRepo) DeductBalance(_ context.Context, _ string, _ float
 }
 
 func (s *stubPaymentUserRepo) CreditBalance(_ context.Context, _ string, _ float64) (float64, error) {
+	s.creditCalled = true
 	if s.creditErr != nil {
 		return 0, s.creditErr
 	}
@@ -59,6 +63,10 @@ type stubEntitlementRepo struct {
 	getGrantErr    error
 	updateErr      error
 	revokeErr      error
+	hasActiveGrant bool
+	hasActiveErr   error
+	history        []domain.PaymentHistoryEntry
+	historyErr     error
 }
 
 func (s *stubEntitlementRepo) CreatePayment(_ context.Context, p domain.Payment) error {
@@ -82,7 +90,11 @@ func (s *stubEntitlementRepo) CreateGrant(_ context.Context, g domain.AccessGran
 func (s *stubEntitlementRepo) RevokeGrant(_ context.Context, _, _ string) error { return s.revokeErr }
 
 func (s *stubEntitlementRepo) HasActiveGrant(_ context.Context, _, _ string) (bool, error) {
-	return false, nil
+	return s.hasActiveGrant, s.hasActiveErr
+}
+
+func (s *stubEntitlementRepo) ListPayments(_ context.Context, _ string) ([]domain.PaymentHistoryEntry, error) {
+	return s.history, s.historyErr
 }
 
 func (s *stubEntitlementRepo) GetActiveGrant(_ context.Context, _, _ string) (domain.AccessGrant, error) {
@@ -169,6 +181,36 @@ func TestCheckout_GrantCreateFails(t *testing.T) {
 	}
 }
 
+func TestCheckout_AlreadyOwned_FastPathSkipsCharge(t *testing.T) {
+	cat := &stubCatalogRepository{course: domain.Course{ID: "c1", Price: 49.99}}
+	usr := &stubPaymentUserRepo{balance: 100}
+	ent := &stubEntitlementRepo{hasActiveGrant: true}
+	uc := newPaymentUC(ent, cat, usr)
+
+	_, err := uc.Checkout(context.Background(), "user-1", "c1")
+	if !errors.Is(err, domain.ErrAlreadyPurchased) {
+		t.Errorf("err = %v, want ErrAlreadyPurchased", err)
+	}
+	if usr.deductCalled {
+		t.Errorf("expected DeductBalance not to be called on the fast path")
+	}
+}
+
+func TestCheckout_GrantRaceLost_RefundsAndReturnsAlreadyPurchased(t *testing.T) {
+	cat := &stubCatalogRepository{course: domain.Course{ID: "c1", Price: 49.99}}
+	usr := &stubPaymentUserRepo{balance: 50.01}
+	ent := &stubEntitlementRepo{createGrantErr: domain.ErrAlreadyPurchased}
+	uc := newPaymentUC(ent, cat, usr)
+
+	_, err := uc.Checkout(context.Background(), "user-1", "c1")
+	if !errors.Is(err, domain.ErrAlreadyPurchased) {
+		t.Errorf("err = %v, want ErrAlreadyPurchased", err)
+	}
+	if !usr.creditCalled {
+		t.Errorf("expected the buyer to be refunded after losing the grant race")
+	}
+}
+
 // --- Refund ---
 
 func TestRefund_Success(t *testing.T) {
@@ -245,5 +287,31 @@ func TestProcessWebhook_RefundedPaymentNotFound(t *testing.T) {
 	err := uc.ProcessWebhook(context.Background(), "txn-1", "REFUNDED", "user-1", "c1")
 	if err == nil {
 		t.Fatal("expected error when payment not found during refund webhook")
+	}
+}
+
+// --- History ---
+
+func TestHistory_Success(t *testing.T) {
+	entries := []domain.PaymentHistoryEntry{
+		{Payment: domain.Payment{TxnID: "txn-1", CourseID: "c1", Amount: 49.99, Status: "succeeded"}, CourseTitle: "Go Mastery"},
+	}
+	ent := &stubEntitlementRepo{history: entries}
+	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
+
+	got, err := uc.History(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("History: %v", err)
+	}
+	if len(got) != 1 || got[0].CourseTitle != "Go Mastery" {
+		t.Errorf("History = %+v, want [Go Mastery entry]", got)
+	}
+}
+
+func TestHistory_RepoError(t *testing.T) {
+	ent := &stubEntitlementRepo{historyErr: errors.New("db error")}
+	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
+	if _, err := uc.History(context.Background(), "user-1"); err == nil {
+		t.Fatal("expected error when the repository fails")
 	}
 }

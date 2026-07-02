@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	ErrPaymentNotFound = errors.New("payment not found")
-	ErrGrantNotFound   = errors.New("no active purchase found for this course")
+	ErrPaymentNotFound  = errors.New("payment not found")
+	ErrGrantNotFound    = errors.New("no active purchase found for this course")
+	ErrAlreadyPurchased = errors.New("course already purchased")
 )
 
 type Payment struct {
@@ -43,6 +44,13 @@ type AccessCheckLog struct {
 	CheckedAt  time.Time
 }
 
+// PaymentHistoryEntry is a payment enriched with the course title for
+// display in a buyer-facing transaction history.
+type PaymentHistoryEntry struct {
+	Payment
+	CourseTitle string
+}
+
 type EntitlementRepository interface {
 	CreatePayment(ctx context.Context, p Payment) error
 	GetPayment(ctx context.Context, txnID string) (Payment, error)
@@ -53,4 +61,5 @@ type EntitlementRepository interface {
 	GetActiveGrant(ctx context.Context, actorID, courseID string) (AccessGrant, error)
 	LogAccessCheck(ctx context.Context, l AccessCheckLog) error
 	GetEnrolledCourses(ctx context.Context, actorID string) ([]Course, error)
+	ListPayments(ctx context.Context, actorID string) ([]PaymentHistoryEntry, error)
 }

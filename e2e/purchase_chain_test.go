@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -161,6 +162,118 @@ func TestChain_WebhookUnknownStatusIsBadRequest(t *testing.T) {
 		TransactionID: uuid.NewString(), Status: "bogus", UserID: uuid.NewString(), CourseID: uuid.NewString(),
 	})
 	e.requireStatus(resp, http.StatusBadRequest)
+}
+
+// historyEntry mirrors the JSON shape of one GET /purchase/history transaction.
+type historyEntry struct {
+	TransactionID string  `json:"transaction_id"`
+	CourseID      string  `json:"course_id"`
+	CourseTitle   string  `json:"course_title"`
+	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
+	Status        string  `json:"status"`
+	CreatedAt     string  `json:"created_at"`
+}
+
+// TestChain_PurchaseHistoryShowsCheckoutAndRefund walks checkout then refund
+// for one course and asserts the buyer's transaction history reflects both:
+// a single payment row that starts "succeeded" and ends "refunded".
+func TestChain_PurchaseHistoryShowsCheckoutAndRefund(t *testing.T) {
+	e := newTestEnv(t)
+	teacher, _ := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+	courseID := e.insertCourse(teacher, "Go Mastery", "Programming", 100.00, "published")
+
+	// Before any purchase: history is empty.
+	var empty struct {
+		Transactions []historyEntry `json:"transactions"`
+	}
+	e.decode(e.do(http.MethodGet, "/api/v1/purchase/history", studentTok, nil), &empty)
+	if len(empty.Transactions) != 0 {
+		t.Fatalf("pre-purchase history = %+v, want none", empty.Transactions)
+	}
+
+	e.requireStatus(
+		e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, courseIDBody{CourseID: courseID}),
+		http.StatusOK,
+	)
+
+	var afterBuy struct {
+		Transactions []historyEntry `json:"transactions"`
+	}
+	e.decode(e.do(http.MethodGet, "/api/v1/purchase/history", studentTok, nil), &afterBuy)
+	if len(afterBuy.Transactions) != 1 ||
+		afterBuy.Transactions[0].Status != "succeeded" ||
+		afterBuy.Transactions[0].CourseTitle != "Go Mastery" ||
+		afterBuy.Transactions[0].Amount != 100.00 {
+		t.Fatalf("post-purchase history = %+v, want one succeeded Go Mastery entry", afterBuy.Transactions)
+	}
+
+	e.requireStatus(
+		e.do(http.MethodPost, "/api/v1/purchase/refund", studentTok, courseIDBody{CourseID: courseID}),
+		http.StatusOK,
+	)
+
+	var afterRefund struct {
+		Transactions []historyEntry `json:"transactions"`
+	}
+	e.decode(e.do(http.MethodGet, "/api/v1/purchase/history", studentTok, nil), &afterRefund)
+	if len(afterRefund.Transactions) != 1 || afterRefund.Transactions[0].Status != "refunded" {
+		t.Fatalf("post-refund history = %+v, want one refunded entry", afterRefund.Transactions)
+	}
+}
+
+// TestChain_ConcurrentCheckoutPreventsDoubleCharge fires two simultaneous
+// checkout requests for the same course from the same student and asserts
+// only one succeeds and the wallet is only ever charged once — regression
+// test for the double-charge race in PaymentUseCase.Checkout.
+func TestChain_ConcurrentCheckoutPreventsDoubleCharge(t *testing.T) {
+	e := newTestEnv(t)
+	teacher, _ := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+	courseID := e.insertCourse(teacher, "Go Mastery", "Programming", 100.00, "published")
+
+	var wg sync.WaitGroup
+	results := make([]apiResp, 2)
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = e.do(http.MethodPost, "/api/v1/purchase/checkout", studentTok, courseIDBody{CourseID: courseID})
+		}(i)
+	}
+	wg.Wait()
+
+	successes, conflicts := 0, 0
+	for _, r := range results {
+		switch r.status {
+		case http.StatusOK:
+			successes++
+		case http.StatusConflict:
+			conflicts++
+		default:
+			t.Fatalf("unexpected status %d; body=%s", r.status, string(r.body))
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("successes=%d conflicts=%d, want exactly 1 and 1", successes, conflicts)
+	}
+
+	var me struct {
+		Balance float64 `json:"balance"`
+	}
+	e.decode(e.do(http.MethodGet, "/api/v1/auth/me", studentTok, nil), &me)
+	if me.Balance != 900.00 {
+		t.Fatalf("balance after concurrent checkout = %v, want 900 (exactly one charge)", me.Balance)
+	}
+
+	var hist struct {
+		Transactions []historyEntry `json:"transactions"`
+	}
+	e.decode(e.do(http.MethodGet, "/api/v1/purchase/history", studentTok, nil), &hist)
+	if len(hist.Transactions) != 1 {
+		t.Fatalf("history after concurrent checkout = %+v, want exactly one transaction", hist.Transactions)
+	}
 }
 
 // myCourseIDs returns the course ids the token's owner currently has access to.

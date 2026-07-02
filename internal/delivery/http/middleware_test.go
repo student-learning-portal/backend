@@ -54,6 +54,10 @@ func (s *middlewareEntRepo) GetEnrolledCourses(_ context.Context, _ string) ([]d
 	return nil, nil
 }
 
+func (s *middlewareEntRepo) ListPayments(_ context.Context, _ string) ([]domain.PaymentHistoryEntry, error) {
+	return nil, nil
+}
+
 // nextCapture records whether the next handler was called.
 type nextCapture struct{ called bool }
 

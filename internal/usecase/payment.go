@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,6 +43,18 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
 	}
 
+	// Fast path: avoid charging at all when the buyer already owns the
+	// course (e.g. a double-click). The DB-level unique index on
+	// access_grant is the authoritative guard for the concurrent case this
+	// check can't catch (see CreateGrant below).
+	has, err := uc.entitlements.HasActiveGrant(ctx, actorID, courseID)
+	if err != nil {
+		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
+	}
+	if has {
+		return CheckoutResult{}, domain.ErrAlreadyPurchased
+	}
+
 	balance, err := uc.users.DeductBalance(ctx, actorID, course.Price)
 	if err != nil {
 		return CheckoutResult{}, err
@@ -72,6 +85,11 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 	}
 	if err := uc.entitlements.CreateGrant(ctx, grant); err != nil {
 		uc.refund(ctx, actorID, course.Price)
+		if errors.Is(err, domain.ErrAlreadyPurchased) {
+			// Lost the race: a concurrent checkout for this course won the
+			// DB constraint first. The buyer was already refunded above.
+			return CheckoutResult{}, domain.ErrAlreadyPurchased
+		}
 		return CheckoutResult{}, fmt.Errorf("checkout: grant: %w", err)
 	}
 
@@ -167,4 +185,13 @@ func (uc *PaymentUseCase) ProcessWebhook(ctx context.Context, txnID, status, act
 	default:
 		return fmt.Errorf("unknown webhook status: %s", status)
 	}
+}
+
+// History returns the buyer's full payment history, newest first.
+func (uc *PaymentUseCase) History(ctx context.Context, actorID string) ([]domain.PaymentHistoryEntry, error) {
+	entries, err := uc.entitlements.ListPayments(ctx, actorID)
+	if err != nil {
+		return nil, fmt.Errorf("history: %w", err)
+	}
+	return entries, nil
 }

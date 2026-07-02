@@ -20,6 +20,9 @@ type paymentStubEntRepo struct {
 	createGrantErr error
 	getPayErr      error
 	getGrantErr    error
+	hasActiveGrant bool
+	history        []domain.PaymentHistoryEntry
+	historyErr     error
 }
 
 func (s *paymentStubEntRepo) CreatePayment(_ context.Context, p domain.Payment) error {
@@ -41,7 +44,7 @@ func (s *paymentStubEntRepo) CreateGrant(_ context.Context, g domain.AccessGrant
 func (s *paymentStubEntRepo) RevokeGrant(_ context.Context, _, _ string) error { return nil }
 
 func (s *paymentStubEntRepo) HasActiveGrant(_ context.Context, _, _ string) (bool, error) {
-	return false, nil
+	return s.hasActiveGrant, nil
 }
 
 func (s *paymentStubEntRepo) GetActiveGrant(_ context.Context, _, _ string) (domain.AccessGrant, error) {
@@ -54,6 +57,10 @@ func (s *paymentStubEntRepo) LogAccessCheck(_ context.Context, _ domain.AccessCh
 
 func (s *paymentStubEntRepo) GetEnrolledCourses(_ context.Context, _ string) ([]domain.Course, error) {
 	return nil, nil
+}
+
+func (s *paymentStubEntRepo) ListPayments(_ context.Context, _ string) ([]domain.PaymentHistoryEntry, error) {
+	return s.history, s.historyErr
 }
 
 // paymentStubCatRepo implements domain.CatalogRepository for payment handler tests.
@@ -193,6 +200,17 @@ func TestCheckoutHandler_InsufficientFunds(t *testing.T) {
 	}
 }
 
+func TestCheckoutHandler_AlreadyPurchased(t *testing.T) {
+	cat := &paymentStubCatRepo{course: domain.Course{ID: "c1", Price: 49.99}}
+	ent := &paymentStubEntRepo{hasActiveGrant: true}
+	h := newPurchaseHandler(ent, cat, &paymentStubUserRepo{balance: 100})
+	w := httptest.NewRecorder()
+	h.Checkout(w, purchasePostRequest(`{"course_id":"c1"}`))
+	if w.Code != http.StatusConflict {
+		t.Errorf("status = %d, want 409", w.Code)
+	}
+}
+
 // --- Refund ---
 
 func TestRefundHandler_Success(t *testing.T) {
@@ -291,5 +309,41 @@ func TestWebhookHandler_InvalidBody(t *testing.T) {
 	h.Webhook(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+// --- History ---
+
+func TestHistoryHandler_Success(t *testing.T) {
+	entries := []domain.PaymentHistoryEntry{
+		{Payment: domain.Payment{TxnID: "txn-1", CourseID: "c1", Amount: 49.99, Currency: "USD", Status: "succeeded"}, CourseTitle: "Go Mastery"},
+	}
+	ent := &paymentStubEntRepo{history: entries}
+	h := newPurchaseHandler(ent, &paymentStubCatRepo{}, &paymentStubUserRepo{})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
+	r = r.WithContext(context.WithValue(r.Context(), claimsContextKey, domain.Claims{UserID: "user-1"}))
+	h.History(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp historyResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Transactions) != 1 || resp.Transactions[0].CourseTitle != "Go Mastery" {
+		t.Errorf("transactions = %+v, want [Go Mastery entry]", resp.Transactions)
+	}
+}
+
+func TestHistoryHandler_MissingAuth(t *testing.T) {
+	h := newPurchaseHandler(&paymentStubEntRepo{}, &paymentStubCatRepo{}, &paymentStubUserRepo{})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
+	h.History(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
 	}
 }
