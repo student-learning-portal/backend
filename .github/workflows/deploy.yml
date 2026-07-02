@@ -23,4 +23,4 @@ jobs:
             -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" up
 
       - name: Restart containers
-        run: cd /home/runner/infra && docker compose up -d --build
+        run: cd /home/runner/infra && docker compose up -d --build backend
