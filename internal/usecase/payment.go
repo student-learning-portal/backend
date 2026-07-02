@@ -68,7 +68,7 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 		CourseID:  courseID,
 		Amount:    course.Price,
 		Currency:  course.Currency,
-		Status:    "succeeded",
+		Status:    "succeeded", //nolint:goconst // sandbox always succeeds
 		Sandbox:   true,
 		CreatedAt: now,
 	}
