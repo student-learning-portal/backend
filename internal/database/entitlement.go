@@ -19,79 +19,122 @@ func NewPostgresEntitlementRepository(db *sql.DB) domain.EntitlementRepository {
 	return &PostgresEntitlementRepository{db: db}
 }
 
-func (r *PostgresEntitlementRepository) CreatePayment(ctx context.Context, p domain.Payment) error {
-	_, err := r.db.ExecContext(ctx,
+// CreatePaymentAndGrant inserts the payment and access grant inside a single
+// transaction (domain.EntitlementRepository doc). The partial unique index
+// ux_access_grant_one_active (actor_id, course_id WHERE revoked_at IS NULL)
+// guarantees only one active grant per course exists, so a concurrent
+// checkout for the same course surfaces as a unique violation on the grant
+// insert, reported as domain.ErrAlreadyPurchased; the payment's txn_id
+// primary key gives the same signal for a duplicate webhook delivery,
+// reported as domain.ErrPaymentAlreadyRecorded. Either way the transaction
+// rolls back, so no partial row is ever left behind.
+func (r *PostgresEntitlementRepository) CreatePaymentAndGrant(ctx context.Context, p domain.Payment, g domain.AccessGrant) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("create payment and grant: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO payment (txn_id, cart_id, actor_id, course_id, amount, currency, status, sandbox)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		p.TxnID, p.CartID, p.ActorID, p.CourseID, p.Amount, p.Currency, p.Status, p.Sandbox,
-	)
-	if err != nil {
-		return fmt.Errorf("create payment: %w", err)
+	); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return domain.ErrPaymentAlreadyRecorded
+		}
+		return fmt.Errorf("create payment and grant: create payment: %w", err)
 	}
-	return nil
-}
 
-func (r *PostgresEntitlementRepository) GetPayment(ctx context.Context, txnID string) (domain.Payment, error) {
-	var p domain.Payment
-	err := r.db.QueryRowContext(ctx,
-		`SELECT txn_id, cart_id, actor_id, course_id, amount, currency, status, sandbox, created_at
-		 FROM payment WHERE txn_id = $1`,
-		txnID,
-	).Scan(&p.TxnID, &p.CartID, &p.ActorID, &p.CourseID, &p.Amount, &p.Currency, &p.Status, &p.Sandbox, &p.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Payment{}, domain.ErrPaymentNotFound
-	}
-	if err != nil {
-		return domain.Payment{}, fmt.Errorf("get payment: %w", err)
-	}
-	return p, nil
-}
-
-func (r *PostgresEntitlementRepository) UpdatePaymentStatus(ctx context.Context, txnID, status string) error {
-	res, err := r.db.ExecContext(ctx,
-		`UPDATE payment SET status = $1 WHERE txn_id = $2`,
-		status, txnID,
-	)
-	if err != nil {
-		return fmt.Errorf("update payment status: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return domain.ErrPaymentNotFound
-	}
-	return nil
-}
-
-// CreateGrant inserts an access grant. The partial unique index
-// ux_access_grant_one_active (actor_id, course_id WHERE revoked_at IS NULL)
-// guarantees only one active grant per course exists, so a concurrent
-// checkout for the same course surfaces here as a unique violation, which
-// is reported as domain.ErrAlreadyPurchased for the usecase to compensate.
-func (r *PostgresEntitlementRepository) CreateGrant(ctx context.Context, g domain.AccessGrant) error {
-	_, err := r.db.ExecContext(ctx,
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO access_grant (grant_id, actor_id, course_id, txn_id, granted_at)
 		 VALUES ($1, $2, $3, $4, $5)`,
 		g.GrantID, g.ActorID, g.CourseID, g.TxnID, g.GrantedAt,
-	)
-	if err != nil {
+	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
 			return domain.ErrAlreadyPurchased
 		}
-		return fmt.Errorf("create grant: %w", err)
+		return fmt.Errorf("create payment and grant: create grant: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("create payment and grant: commit: %w", err)
 	}
 	return nil
 }
 
-func (r *PostgresEntitlementRepository) RevokeGrant(ctx context.Context, txnID, reason string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE access_grant SET revoked_at = $1, revoke_reason = $2
-		 WHERE txn_id = $3 AND revoked_at IS NULL`,
-		time.Now(), reason, txnID,
-	)
+// SettleRefund atomically settles a refund (domain.EntitlementRepository
+// doc): it locks the payment row, marks it refunded, revokes the associated
+// access grant, and credits the buyer's wallet, all in one transaction. If
+// the payment is already refunded (idempotent retry, e.g. a redelivered
+// webhook) it returns the current state and balance without crediting the
+// wallet again.
+func (r *PostgresEntitlementRepository) SettleRefund(ctx context.Context, txnID string) (domain.Payment, float64, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("revoke grant: %w", err)
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: begin tx: %w", err)
 	}
-	return nil
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	var p domain.Payment
+	err = tx.QueryRowContext(ctx,
+		`SELECT txn_id, cart_id, actor_id, course_id, amount, currency, status, sandbox, created_at
+		 FROM payment WHERE txn_id = $1 FOR UPDATE`,
+		txnID,
+	).Scan(&p.TxnID, &p.CartID, &p.ActorID, &p.CourseID, &p.Amount, &p.Currency, &p.Status, &p.Sandbox, &p.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Payment{}, 0, domain.ErrPaymentNotFound
+	}
+	if err != nil {
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: get payment: %w", err)
+	}
+
+	if p.Status == "refunded" {
+		var balance float64
+		if err := tx.QueryRowContext(ctx,
+			`SELECT wallet_balance FROM users WHERE id = $1`, p.ActorID,
+		).Scan(&balance); err != nil {
+			return domain.Payment{}, 0, fmt.Errorf("settle refund: read balance: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return domain.Payment{}, 0, fmt.Errorf("settle refund: commit: %w", err)
+		}
+		return p, balance, nil
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE payment SET status = 'refunded' WHERE txn_id = $1`, txnID,
+	); err != nil {
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: update payment: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE access_grant SET revoked_at = $1, revoke_reason = 'refund'
+		 WHERE txn_id = $2 AND revoked_at IS NULL`,
+		time.Now(), txnID,
+	); err != nil {
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: revoke grant: %w", err)
+	}
+
+	var balance float64
+	err = tx.QueryRowContext(ctx,
+		`UPDATE users SET wallet_balance = wallet_balance + $1 WHERE id = $2 RETURNING wallet_balance`,
+		p.Amount, p.ActorID,
+	).Scan(&balance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Payment{}, 0, domain.ErrUserNotFound
+	}
+	if err != nil {
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: credit balance: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return domain.Payment{}, 0, fmt.Errorf("settle refund: commit: %w", err)
+	}
+	p.Status = "refunded"
+	return p, balance, nil
 }
 
 func (r *PostgresEntitlementRepository) HasActiveGrant(ctx context.Context, actorID, courseID string) (bool, error) {

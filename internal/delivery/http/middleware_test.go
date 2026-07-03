@@ -28,15 +28,13 @@ type middlewareEntRepo struct {
 	grantErr error
 }
 
-func (s *middlewareEntRepo) CreatePayment(_ context.Context, _ domain.Payment) error { return nil }
-
-func (s *middlewareEntRepo) GetPayment(_ context.Context, _ string) (domain.Payment, error) {
-	return domain.Payment{}, nil
+func (s *middlewareEntRepo) CreatePaymentAndGrant(_ context.Context, _ domain.Payment, _ domain.AccessGrant) error {
+	return nil
 }
 
-func (s *middlewareEntRepo) UpdatePaymentStatus(_ context.Context, _, _ string) error  { return nil }
-func (s *middlewareEntRepo) CreateGrant(_ context.Context, _ domain.AccessGrant) error { return nil }
-func (s *middlewareEntRepo) RevokeGrant(_ context.Context, _, _ string) error          { return nil }
+func (s *middlewareEntRepo) SettleRefund(_ context.Context, _ string) (domain.Payment, float64, error) {
+	return domain.Payment{}, 0, nil
+}
 
 func (s *middlewareEntRepo) HasActiveGrant(_ context.Context, _, _ string) (bool, error) {
 	return s.hasGrant, s.grantErr

@@ -3,10 +3,12 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/student-learning-portal/backend/internal/domain"
+	"github.com/student-learning-portal/backend/internal/logging"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
@@ -225,7 +227,19 @@ func (h *PurchaseHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.paymentUseCase.ProcessWebhook(r.Context(), req.TransactionID, req.Status, req.UserID, req.CourseID); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		if errors.Is(err, domain.ErrUnknownWebhookStatus) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		// An internal/DB failure, not a bad request: return 5xx (not the raw
+		// error text) so the gateway's retry logic kicks in instead of
+		// treating this delivery as permanently accepted.
+		logging.FromContext(r.Context()).Error("webhook processing failed",
+			slog.String("txn_id", req.TransactionID),
+			slog.String("status", req.Status),
+			slog.Any("error", err),
+		)
+		writeError(w, http.StatusInternalServerError, "failed to process payment webhook")
 		return
 	}
 

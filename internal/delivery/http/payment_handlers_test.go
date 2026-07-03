@@ -14,34 +14,30 @@ import (
 
 // paymentStubEntRepo implements domain.EntitlementRepository for payment handler tests.
 type paymentStubEntRepo struct {
-	payment        domain.Payment
-	grant          domain.AccessGrant
-	createPayErr   error
-	createGrantErr error
-	getPayErr      error
-	getGrantErr    error
-	hasActiveGrant bool
-	history        []domain.PaymentHistoryEntry
-	historyErr     error
+	payment           domain.Payment
+	grant             domain.AccessGrant
+	createPayGrantErr error
+	settleErr         error
+	getGrantErr       error
+	hasActiveGrant    bool
+	history           []domain.PaymentHistoryEntry
+	historyErr        error
 }
 
-func (s *paymentStubEntRepo) CreatePayment(_ context.Context, p domain.Payment) error {
+func (s *paymentStubEntRepo) CreatePaymentAndGrant(_ context.Context, p domain.Payment, g domain.AccessGrant) error {
 	s.payment = p
-	return s.createPayErr
-}
-
-func (s *paymentStubEntRepo) GetPayment(_ context.Context, _ string) (domain.Payment, error) {
-	return s.payment, s.getPayErr
-}
-
-func (s *paymentStubEntRepo) UpdatePaymentStatus(_ context.Context, _, _ string) error { return nil }
-
-func (s *paymentStubEntRepo) CreateGrant(_ context.Context, g domain.AccessGrant) error {
 	s.grant = g
-	return s.createGrantErr
+	return s.createPayGrantErr
 }
 
-func (s *paymentStubEntRepo) RevokeGrant(_ context.Context, _, _ string) error { return nil }
+func (s *paymentStubEntRepo) SettleRefund(_ context.Context, _ string) (domain.Payment, float64, error) {
+	if s.settleErr != nil {
+		return domain.Payment{}, 0, s.settleErr
+	}
+	p := s.payment
+	p.Status = "refunded"
+	return p, 0, nil
+}
 
 func (s *paymentStubEntRepo) HasActiveGrant(_ context.Context, _, _ string) (bool, error) {
 	return s.hasActiveGrant, nil
