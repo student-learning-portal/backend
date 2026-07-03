@@ -26,12 +26,18 @@ const (
 func Run() {
 	database.InitDB()
 
+	analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
+
 	// Analytics event stream (logging-architecture.md): events fan out to the raw
-	// NDJSON transport on stdout and to the Postgres event_log load.
+	// NDJSON transport on stdout, the Postgres event_log load, and a point rollup
+	// refresh that keeps a learner's own analytics_student_course row close to
+	// real-time instead of waiting for the periodic batch loader
+	// (analytics-ml-layer.md §2; cmd/analytics-loader remains the reconciliation pass).
 	analytics := usecase.NewAnalyticsRecorder(
 		analyticsSource(),
 		eventlog.NewNDJSONSink(os.Stdout),
 		database.NewPostgresEventSink(database.DB),
+		usecase.NewRollupRefreshSink(analyticsRepo),
 	)
 
 	catalogRepo := database.NewPostgresCatalogRepository(database.DB)
@@ -61,7 +67,6 @@ func Run() {
 		log.Fatalf("failed to create uploads directory: %v", err)
 	}
 
-	analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
 	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
 
 	handlers := delivery.Handlers{

@@ -185,3 +185,54 @@ func TestStudentDashboard_AggregatesAcrossOwnCoursesOnly(t *testing.T) {
 		t.Errorf("courseA status = %q, want ON_TRACK", byID[courseA])
 	}
 }
+
+// TestStudentDashboard_UpdatesImmediatelyAfterProgressSave proves the point
+// rollup refresh (usecase.RollupRefreshSink): saving progress through the real
+// player endpoint must be visible on /analytics/student/me right away, with no
+// analytics-loader run in between.
+func TestStudentDashboard_UpdatesImmediatelyAfterProgressSave(t *testing.T) {
+	e := newTestEnv(t)
+	teacherID, _ := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+	courseID := e.insertCourse(teacherID, "Go", "Programming", 10, "published")
+	lessonID := e.insertLesson(courseID, "Intro", "video", 1)
+	e.insertMedia(lessonID, 200_000) // 200s
+
+	e.grantAccess(studentTok, courseID)
+
+	// Freshly enrolled, no progress yet: no rollup row exists at all (the
+	// loader has never run, and no progress event has fired to create one).
+	before := e.do(http.MethodGet, "/api/v1/analytics/student/me", studentTok, nil)
+	e.requireStatus(before, http.StatusOK)
+	var d0 studentDashboard
+	e.decode(before, &d0)
+	if len(d0.Courses) != 0 {
+		t.Fatalf("before progress: courses = %+v, want none", d0.Courses)
+	}
+
+	// Save progress at 100s (50% of 200s) — still no loader run.
+	save := e.do(http.MethodPost, "/api/v1/player/courses/"+courseID+"/lessons/"+lessonID+"/progress",
+		studentTok, map[string]any{"progress_seconds": 100})
+	e.requireStatus(save, http.StatusOK)
+
+	after := e.do(http.MethodGet, "/api/v1/analytics/student/me", studentTok, nil)
+	e.requireStatus(after, http.StatusOK)
+	var d1 studentDashboard
+	e.decode(after, &d1)
+	if len(d1.Courses) != 1 {
+		t.Fatalf("after progress: courses = %d, want 1 (point refresh should have created the row)", len(d1.Courses))
+	}
+	got := d1.Courses[0]
+	if got.CourseID != courseID {
+		t.Errorf("course_id = %q, want %q", got.CourseID, courseID)
+	}
+	if got.ProgressPercent != 50 {
+		t.Errorf("progress_percentage = %v, want 50", got.ProgressPercent)
+	}
+	if got.LessonsTotal != 1 {
+		t.Errorf("lessons_total = %d, want 1", got.LessonsTotal)
+	}
+	if d1.OverallProgress != 50 {
+		t.Errorf("overall_progress = %v, want 50", d1.OverallProgress)
+	}
+}

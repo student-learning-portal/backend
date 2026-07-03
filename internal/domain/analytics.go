@@ -96,6 +96,11 @@ type AnalyticsRepository interface {
 	// StudentCourseProgress returns the rolled-up standing of every course a
 	// learner is enrolled in, ordered by most recently active first.
 	StudentCourseProgress(ctx context.Context, studentID string) ([]CourseProgress, error)
+	// RefreshStudentCourseRow recomputes a single (actor, course) rollup row.
+	// Cheap enough to run synchronously on the request path right after a
+	// progress-changing event (see usecase.RollupRefreshSink); it is a
+	// read-your-own-writes shortcut, not a replacement for the full loader.
+	RefreshStudentCourseRow(ctx context.Context, actorID, courseID string) error
 	// RefreshStudentCourseRollup recomputes the analytics_student_course rollup
 	// from event_log (+ normalized tables). Safe to run repeatedly (upsert).
 	RefreshStudentCourseRollup(ctx context.Context) error

@@ -25,6 +25,9 @@ func (s *stubAnalyticsRepo) CourseStudentProgress(_ context.Context, _ string) (
 func (s *stubAnalyticsRepo) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
 	return s.courseRows, s.courseErr
 }
+func (s *stubAnalyticsRepo) RefreshStudentCourseRow(_ context.Context, _, _ string) error {
+	return nil
+}
 func (s *stubAnalyticsRepo) RefreshStudentCourseRollup(_ context.Context) error { return nil }
 
 type stubCatalogRepo struct {

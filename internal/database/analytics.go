@@ -15,6 +15,12 @@ import (
 //go:embed sql/refresh_student_course_rollup.sql
 var refreshStudentCourseRollupSQL string
 
+// refreshStudentCourseRollupOneSQL is the same aggregation scoped to a single
+// (actor, course) pair, cheap enough to run inline on the request path.
+//
+//go:embed sql/refresh_student_course_rollup_one.sql
+var refreshStudentCourseRollupOneSQL string
+
 type PostgresAnalyticsRepository struct {
 	db *sql.DB
 }
@@ -28,6 +34,16 @@ func NewPostgresAnalyticsRepository(db *sql.DB) domain.AnalyticsRepository {
 func (r *PostgresAnalyticsRepository) RefreshStudentCourseRollup(ctx context.Context) error {
 	if _, err := r.db.ExecContext(ctx, refreshStudentCourseRollupSQL); err != nil {
 		return fmt.Errorf("refresh student-course rollup: %w", err)
+	}
+	return nil
+}
+
+// RefreshStudentCourseRow recomputes a single (actor, course) rollup row from
+// event_log. Safe to run repeatedly (upsert); inserts nothing if the actor
+// holds no active grant for the course.
+func (r *PostgresAnalyticsRepository) RefreshStudentCourseRow(ctx context.Context, actorID, courseID string) error {
+	if _, err := r.db.ExecContext(ctx, refreshStudentCourseRollupOneSQL, actorID, courseID); err != nil {
+		return fmt.Errorf("refresh student course row: %w", err)
 	}
 	return nil
 }

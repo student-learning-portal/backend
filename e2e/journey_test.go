@@ -144,7 +144,6 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 
 	secret := getenv("JWT_SECRET", testSecret)
 	tokens := security.NewJWTTokenService(secret, 24*time.Hour)
-	analytics := usecase.NewAnalyticsRecorder(domain.Source{}) // no sinks - keep tests quiet
 
 	catalogRepo := database.NewPostgresCatalogRepository(db)
 	userRepo := database.NewPostgresUserRepository(db)
@@ -152,6 +151,17 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	lessonRepo := database.NewPostgresLessonRepository(db)
 	progressRepo := database.NewPostgresProgressRepository(db)
 	analyticsRepo := database.NewPostgresAnalyticsRepository(db)
+
+	// Postgres event_log + point rollup refresh are wired (so player/purchase
+	// e2e tests exercise the real analytics pipeline); the NDJSON sink is left
+	// out to keep test stdout quiet. Env must be a real enum value: event_log.env
+	// has CHECK (env IN ('dev','staging','prod')), so the Source{} zero value
+	// would silently fail every insert (swallowed by the recorder's best-effort
+	// error handling) and leave event_log empty.
+	analytics := usecase.NewAnalyticsRecorder(domain.Source{Env: "dev"},
+		database.NewPostgresEventSink(db),
+		usecase.NewRollupRefreshSink(analyticsRepo),
+	)
 
 	uploadsDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {

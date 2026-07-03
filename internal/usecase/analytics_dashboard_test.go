@@ -23,6 +23,9 @@ func (s *stubAnalyticsRepository) CourseStudentProgress(_ context.Context, _ str
 func (s *stubAnalyticsRepository) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
 	return s.courseRows, s.courseErr
 }
+func (s *stubAnalyticsRepository) RefreshStudentCourseRow(_ context.Context, _, _ string) error {
+	return nil
+}
 func (s *stubAnalyticsRepository) RefreshStudentCourseRollup(_ context.Context) error { return nil }
 
 func newDashboardUC(course domain.Course, courseErr error, rows []domain.StudentProgress) *AnalyticsUseCase {

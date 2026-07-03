@@ -50,8 +50,33 @@ go run ./cmd/analytics-loader
 psql -f internal/database/sql/refresh_student_course_rollup.sql
 ```
 
-Schedule it (cron) for periodic refresh; there is currently no auto-refresh on
-write.
+Schedule it (cron) as a periodic **reconciliation** pass — see §2a for why the
+rollup does not otherwise depend on it staying fresh.
+
+### 2a. Point refresh (near real-time)
+
+The full loader above recomputes every `(actor, course)` row and is meant to
+run periodically, not on every write. Between runs, `usecase.RollupRefreshSink`
+keeps a learner's *own* row current: it implements `domain.EventSink` and plugs
+into the same fan-out `AnalyticsRecorder` already uses for the raw event write
+(`internal/app.go`), so every `player.progress_save` synchronously triggers
+`AnalyticsRepository.RefreshStudentCourseRow(ctx, actorID, courseID)` —
+the same aggregation as the full loader, scoped to one row via
+`internal/database/sql/refresh_student_course_rollup_one.sql`.
+
+Because it rides the existing best-effort fan-out, a failure here is logged and
+swallowed by `AnalyticsRecorder.Record` exactly like a failed `event_log`
+write — it can never fail the request that triggered it, and it never blocks on
+retrying. `player.lesson_open` is intentionally excluded (it doesn't change
+stored progress, so refreshing on it would be a pointless recompute on every
+lesson view).
+
+This makes `GET /analytics/student/me` read-your-own-writes consistent for the
+event that changes it. The periodic loader in §2 remains the source of full
+correctness — it is what repairs any row a point refresh missed (e.g. events
+replayed or backfilled directly into `event_log`), and it is still what a
+teacher's dashboard depends on for *other* students' standings, since only the
+acting learner's own row gets a point refresh.
 
 ---
 
@@ -90,7 +115,10 @@ builds the rollup from them. See the header of that file for usage.
 
 ## 5. Future
 
-- Auto-refresh (trigger/queue) instead of manual loader runs.
+- Point refresh (§2a) only covers the acting learner's own row; a teacher's
+  dashboard still only sees other students' standings as fresh as the last
+  loader run. A trigger/queue that fans a progress event out to every
+  interested row (not just the actor's) would close that gap.
 - `assessment.*` signals (quiz scores) feeding the risk model.
 - Columnar store for `event_log` if behavioral volume outgrows Postgres
   (`logging-architecture.md` §5.5).
