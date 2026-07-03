@@ -5,15 +5,24 @@ import (
 	"database/sql"
 	_ "embed" // enables //go:embed of the rollup refresh SQL
 	"fmt"
+	"time"
 
 	"github.com/student-learning-portal/backend/internal/domain"
 )
 
-// refreshStudentCourseRollupSQL is the loader aggregation, kept in a .sql file so
-// the exact same statement can be run via `psql -f` for manual refreshes/debugging.
+// refreshStudentCourseRollupSQL is the full-table loader aggregation, kept in a
+// .sql file so the exact same statement can be run via `psql -f` for a manual
+// full reconciliation pass (e.g. after a backfill/replay into event_log).
 //
 //go:embed sql/refresh_student_course_rollup.sql
 var refreshStudentCourseRollupSQL string
+
+// refreshStudentCourseRollupIncrementalSQL is the same aggregation narrowed to
+// only the (actor, course) pairs touched since a watermark. RefreshStudentCourseRollup
+// uses this by default so routine runs don't rescan the entire event_log.
+//
+//go:embed sql/refresh_student_course_rollup_incremental.sql
+var refreshStudentCourseRollupIncrementalSQL string
 
 // refreshStudentCourseRollupOneSQL is the same aggregation scoped to a single
 // (actor, course) pair, cheap enough to run inline on the request path.
@@ -26,14 +35,66 @@ type PostgresAnalyticsRepository struct {
 }
 
 func NewPostgresAnalyticsRepository(db *sql.DB) domain.AnalyticsRepository {
+	return NewPostgresAnalyticsRepo(db)
+}
+
+// NewPostgresAnalyticsRepo returns the concrete repository type (rather than the
+// domain.AnalyticsRepository interface), for callers that need access to
+// RefreshStudentCourseRollupFull, which isn't part of the interface.
+func NewPostgresAnalyticsRepo(db *sql.DB) *PostgresAnalyticsRepository {
 	return &PostgresAnalyticsRepository{db: db}
 }
 
 // RefreshStudentCourseRollup recomputes the analytics_student_course rollup from
-// event_log. The statement upserts, so re-running is idempotent.
+// event_log. It only rescans (actor, course) pairs touched since the last run
+// (tracked in analytics_rollup_state), rather than the full event_log history,
+// so routine runs stay cheap as the log grows. The statement upserts, so
+// re-running is idempotent, and a run that finds nothing new is a no-op.
 func (r *PostgresAnalyticsRepository) RefreshStudentCourseRollup(ctx context.Context) error {
-	if _, err := r.db.ExecContext(ctx, refreshStudentCourseRollupSQL); err != nil {
+	runAt := time.Now().UTC()
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("refresh student-course rollup: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	var watermark time.Time
+	if err := tx.QueryRowContext(ctx,
+		`SELECT last_ingest_ts FROM analytics_rollup_state WHERE id = 1 FOR UPDATE`,
+	).Scan(&watermark); err != nil {
+		return fmt.Errorf("refresh student-course rollup: read watermark: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, refreshStudentCourseRollupIncrementalSQL, watermark); err != nil {
 		return fmt.Errorf("refresh student-course rollup: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE analytics_rollup_state SET last_ingest_ts = $1 WHERE id = 1`, runAt,
+	); err != nil {
+		return fmt.Errorf("refresh student-course rollup: advance watermark: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("refresh student-course rollup: commit: %w", err)
+	}
+	return nil
+}
+
+// RefreshStudentCourseRollupFull recomputes the analytics_student_course rollup
+// from the entire event_log/access_grant history, ignoring the incremental
+// watermark. Use for manual reconciliation (e.g. after a backfill or replay
+// that inserted rows with old ingest_ts values the incremental path would
+// otherwise skip).
+func (r *PostgresAnalyticsRepository) RefreshStudentCourseRollupFull(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, refreshStudentCourseRollupSQL); err != nil {
+		return fmt.Errorf("refresh student-course rollup (full): %w", err)
+	}
+	if _, err := r.db.ExecContext(ctx,
+		`UPDATE analytics_rollup_state SET last_ingest_ts = $1 WHERE id = 1`, time.Now().UTC(),
+	); err != nil {
+		return fmt.Errorf("refresh student-course rollup (full): advance watermark: %w", err)
 	}
 	return nil
 }

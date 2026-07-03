@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"time"
 
@@ -15,16 +16,25 @@ import (
 const refreshTimeout = 5 * time.Minute
 
 func main() {
+	full := flag.Bool("full", false, "recompute the rollup from the entire event_log/access_grant history, ignoring the incremental watermark (manual reconciliation)")
+	flag.Parse()
+
 	database.InitDB()
 
-	repo := database.NewPostgresAnalyticsRepository(database.DB)
+	repo := database.NewPostgresAnalyticsRepo(database.DB)
 
 	ctx, cancel := context.WithTimeout(context.Background(), refreshTimeout)
 	defer cancel()
 
 	start := time.Now()
-	if err := repo.RefreshStudentCourseRollup(ctx); err != nil {
+	var err error
+	if *full {
+		err = repo.RefreshStudentCourseRollupFull(ctx)
+	} else {
+		err = repo.RefreshStudentCourseRollup(ctx)
+	}
+	if err != nil {
 		log.Fatalf("analytics-loader: refresh failed: %v", err)
 	}
-	log.Printf("analytics-loader: student_course rollup refreshed in %s", time.Since(start))
+	log.Printf("analytics-loader: student_course rollup refreshed in %s (full=%v)", time.Since(start), *full)
 }
