@@ -138,6 +138,54 @@ func scanCourseRows(rows *sql.Rows) ([]domain.Course, error) {
 	return courses, nil
 }
 
+// Create inserts a new course owned by c.TeacherID. Status/currency defaults
+// are applied by the caller (usecase layer) before this is called.
+func (r *PostgresCatalogRepository) Create(ctx context.Context, c domain.Course) (domain.Course, error) {
+	var out domain.Course
+	err := r.db.QueryRowContext(ctx,
+		`INSERT INTO courses (teacher_id, title, description, subject, price, currency)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
+		c.TeacherID, c.Title, c.Description, c.Subject, c.Price, c.Currency,
+	).Scan(&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt)
+	if err != nil {
+		return domain.Course{}, fmt.Errorf("create course: %w", err)
+	}
+	return out, nil
+}
+
+// Update overwrites every editable field of an existing course.
+func (r *PostgresCatalogRepository) Update(ctx context.Context, c domain.Course) (domain.Course, error) {
+	var out domain.Course
+	err := r.db.QueryRowContext(ctx,
+		`UPDATE courses
+		 SET title = $1, description = $2, subject = $3, price = $4, currency = $5, status = $6, updated_at = now()
+		 WHERE id = $7
+		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
+		c.Title, c.Description, c.Subject, c.Price, c.Currency, c.Status, c.ID,
+	).Scan(&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Course{}, domain.ErrCourseNotFound
+	}
+	if err != nil {
+		return domain.Course{}, fmt.Errorf("update course: %w", err)
+	}
+	return out, nil
+}
+
+// Delete removes a course. Lessons/media/materials cascade via their FKs.
+// The usecase layer only calls this for draft courses.
+func (r *PostgresCatalogRepository) Delete(ctx context.Context, id string) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM courses WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete course: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrCourseNotFound
+	}
+	return nil
+}
+
 func (r *PostgresCatalogRepository) GetByID(ctx context.Context, id string) (domain.Course, error) {
 	var c domain.Course
 	err := r.db.QueryRowContext(ctx,

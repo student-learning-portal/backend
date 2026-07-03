@@ -59,11 +59,14 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 
 // RequireEntitlement checks that the authenticated user holds an active access grant
 // for the course in the {course_id} path parameter, blocking with 403 otherwise.
+// A course's own teacher is always allowed through, without needing a purchase
+// grant, so they can preview the content they author.
 // Every decision is written to the audit-grade access_check_log and mirrored to the
 // analytics event stream as access.check (plus access.denied on refusal). Must be
 // chained after RequireAuth.
 func RequireEntitlement(
 	entRepo domain.EntitlementRepository,
+	catalog domain.CatalogRepository,
 	analytics *usecase.AnalyticsRecorder,
 ) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
@@ -76,6 +79,13 @@ func RequireEntitlement(
 
 			courseID := r.PathValue(keyCourseID)
 			lessonID := r.PathValue(keyLessonID)
+
+			if claims.Role == domain.RoleTeacher {
+				if course, err := catalog.GetByID(r.Context(), courseID); err == nil && course.TeacherID == claims.UserID {
+					next(w, r)
+					return
+				}
+			}
 
 			allowed, err := entRepo.HasActiveGrant(r.Context(), claims.UserID, courseID)
 			if err != nil {

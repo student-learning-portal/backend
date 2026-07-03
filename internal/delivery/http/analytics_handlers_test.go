@@ -47,6 +47,16 @@ func (s *stubCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.
 	return nil, nil
 }
 
+func (s *stubCatalogRepo) Create(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (s *stubCatalogRepo) Update(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (s *stubCatalogRepo) Delete(_ context.Context, _ string) error { return nil }
+
 func newAnalyticsHandler(course domain.Course, courseErr error, rows []domain.StudentProgress) *AnalyticsHandler {
 	uc := usecase.NewAnalyticsUseCase(
 		&stubAnalyticsRepo{rows: rows},

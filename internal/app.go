@@ -73,17 +73,18 @@ func Run() {
 	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
 
 	handlers := delivery.Handlers{
-		Catalog:     delivery.NewCatalogHandler(catalogUseCase),
-		Auth:        delivery.NewAuthHandler(authUseCase, analytics),
-		Purchase:    delivery.NewPurchaseHandler(paymentUseCase, analytics),
-		Player:      delivery.NewPlayerHandler(playerUseCase, analytics),
-		UserCourses: delivery.NewUserCoursesHandler(userCoursesUseCase),
-		Profile:     delivery.NewProfileHandler(authUseCase, uploadsDir),
-		Analytics:   delivery.NewAnalyticsHandler(analyticsUseCase),
-		Results:     delivery.NewResultsHandler(resultsUseCase),
+		Catalog:        delivery.NewCatalogHandler(catalogUseCase),
+		Auth:           delivery.NewAuthHandler(authUseCase, analytics),
+		Purchase:       delivery.NewPurchaseHandler(paymentUseCase, analytics),
+		Player:         delivery.NewPlayerHandler(playerUseCase, analytics),
+		UserCourses:    delivery.NewUserCoursesHandler(userCoursesUseCase),
+		Profile:        delivery.NewProfileHandler(authUseCase, uploadsDir),
+		Analytics:      delivery.NewAnalyticsHandler(analyticsUseCase),
+		Results:        delivery.NewResultsHandler(resultsUseCase),
+		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase),
 	}
 
-	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir)
+	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)
 
 	port := ":8080"
 	log.Printf("Server listening on port %s", port)

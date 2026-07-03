@@ -18,8 +18,11 @@ func NewPlayerHandler(uc *usecase.PlayerUseCase, analytics *usecase.AnalyticsRec
 	return &PlayerHandler{playerUseCase: uc, analytics: analytics}
 }
 
-// materialDTO is a lesson attachment as returned to the player.
+// materialDTO is a lesson attachment as returned to the player. ID lets the
+// owning teacher's editor reference a specific material (e.g. to delete it);
+// students viewing the same payload can ignore it.
 type materialDTO struct {
+	ID    string `json:"id"`
 	Title string `json:"title"`
 	URL   string `json:"url"`
 	Type  string `json:"type"`
@@ -36,6 +39,7 @@ type lessonDataResponse struct {
 	Position            int           `json:"position"`
 	ContentURL          string        `json:"content_url"`
 	DurationSeconds     int           `json:"duration_seconds"`
+	MediaType           string        `json:"media_type,omitempty"`
 	Materials           []materialDTO `json:"materials"`
 	LastProgressSeconds int           `json:"last_progress_seconds"`
 	PercentComplete     float64       `json:"percent_complete"`
@@ -88,15 +92,16 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentURL, durationSeconds := "", 0
+	contentURL, durationSeconds, mediaType := "", 0, ""
 	if len(content.Media) > 0 {
 		contentURL = content.Media[0].URL
 		durationSeconds = content.Media[0].DurationMs / 1000 //nolint:mnd // ms -> s
+		mediaType = content.Media[0].Type
 	}
 
 	materials := make([]materialDTO, 0, len(content.Materials))
 	for _, m := range content.Materials {
-		materials = append(materials, materialDTO{Title: m.Title, URL: m.URL, Type: m.Type})
+		materials = append(materials, materialDTO{ID: m.ID, Title: m.Title, URL: m.URL, Type: m.Type})
 	}
 
 	h.analytics.Record(r.Context(), domain.EventPlayerLessonOpen, domain.PIINone, map[string]any{
@@ -114,6 +119,7 @@ func (h *PlayerHandler) GetLesson(w http.ResponseWriter, r *http.Request) {
 		Position:            content.Lesson.Position,
 		ContentURL:          contentURL,
 		DurationSeconds:     durationSeconds,
+		MediaType:           mediaType,
 		Materials:           materials,
 		LastProgressSeconds: content.Progress.PositionMs / 1000, //nolint:mnd // ms -> s
 		PercentComplete:     content.Progress.PercentComplete,

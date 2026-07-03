@@ -169,17 +169,19 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, tokens)
+	catalogUC := usecase.NewCatalogUseCase(catalogRepo, lessonRepo)
 	handlers := delivery.Handlers{
-		Catalog:     delivery.NewCatalogHandler(usecase.NewCatalogUseCase(catalogRepo, lessonRepo)),
-		Auth:        delivery.NewAuthHandler(authUC, analytics),
-		Purchase:    delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
-		Player:      delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
-		UserCourses: delivery.NewUserCoursesHandler(usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)),
-		Profile:     delivery.NewProfileHandler(authUC, uploadsDir),
-		Analytics:   delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
-		Results:     delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db))),
+		Catalog:        delivery.NewCatalogHandler(catalogUC),
+		Auth:           delivery.NewAuthHandler(authUC, analytics),
+		Purchase:       delivery.NewPurchaseHandler(usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo), analytics),
+		Player:         delivery.NewPlayerHandler(usecase.NewPlayerUseCase(lessonRepo, progressRepo), analytics),
+		UserCourses:    delivery.NewUserCoursesHandler(usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)),
+		Profile:        delivery.NewProfileHandler(authUC, uploadsDir),
+		Analytics:      delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
+		Results:        delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db))),
+		TeacherContent: delivery.NewTeacherContentHandler(catalogUC),
 	}
-	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir))
+	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir))
 }
 
 // - response DTOs (mirror the handler structs) ----------------------------

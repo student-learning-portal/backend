@@ -8,6 +8,11 @@ import (
 
 var ErrCourseNotFound = errors.New("course not found")
 
+// ErrCourseNotDraft is returned when a teacher tries to delete a course that
+// has already left the draft stage — published/archived courses may have
+// been purchased, so they can only be archived, never deleted.
+var ErrCourseNotDraft = errors.New("course must be a draft to delete")
+
 // Course represents the core data structure for a learning course
 type Course struct {
 	ID          string    `json:"id"`
@@ -39,4 +44,7 @@ type CatalogRepository interface {
 	GetCourses(params CourseListParams) ([]Course, int, error)
 	GetByID(ctx context.Context, id string) (Course, error)
 	GetByTeacherID(ctx context.Context, teacherID string) ([]Course, error)
+	Create(ctx context.Context, c Course) (Course, error)
+	Update(ctx context.Context, c Course) (Course, error)
+	Delete(ctx context.Context, id string) error
 }

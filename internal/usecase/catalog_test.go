@@ -29,6 +29,16 @@ func (s *stubCatalogRepository) GetByTeacherID(_ context.Context, _ string) ([]d
 	return s.courses, s.coursesErr
 }
 
+func (s *stubCatalogRepository) Create(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (s *stubCatalogRepository) Update(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (s *stubCatalogRepository) Delete(_ context.Context, _ string) error { return nil }
+
 func TestListCourses_ReturnsCourses(t *testing.T) {
 	repo := &stubCatalogRepository{
 		courses: []domain.Course{{ID: "c1", Title: "Math"}, {ID: "c2", Title: "Science"}},

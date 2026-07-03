@@ -8,6 +8,14 @@ import (
 
 var ErrLessonNotFound = errors.New("lesson not found")
 
+// ErrMaterialNotFound is returned when a material id doesn't exist under the
+// requested lesson.
+var ErrMaterialNotFound = errors.New("material not found")
+
+// ErrLessonOrderMismatch is returned when a reorder request's lesson id list
+// doesn't exactly match the course's current lessons.
+var ErrLessonOrderMismatch = errors.New("lesson order does not match the course's lessons")
+
 type Lesson struct {
 	ID        string    `json:"id"`
 	CourseID  string    `json:"course_id"`
@@ -41,4 +49,23 @@ type LessonRepository interface {
 	GetLesson(ctx context.Context, courseID, lessonID string) (Lesson, error)
 	GetLessonMedia(ctx context.Context, lessonID string) ([]Media, error)
 	GetLessonMaterials(ctx context.Context, lessonID string) ([]Material, error)
+
+	// CreateLesson appends a new lesson to the end of the course (position =
+	// max existing position + 1).
+	CreateLesson(ctx context.Context, courseID, title, lessonType string) (Lesson, error)
+	// UpdateLesson changes a lesson's title/type in place; position is
+	// changed only via ReorderLessons.
+	UpdateLesson(ctx context.Context, courseID, lessonID, title, lessonType string) (Lesson, error)
+	// ReorderLessons sets each lesson's position to its index in orderedIDs.
+	// orderedIDs must contain exactly the course's current lesson ids.
+	ReorderLessons(ctx context.Context, courseID string, orderedIDs []string) error
+	DeleteLesson(ctx context.Context, courseID, lessonID string) error
+
+	// SetLessonMedia replaces the lesson's media asset (a lesson has at most
+	// one — the player only ever reads the first one) with the given one.
+	SetLessonMedia(ctx context.Context, lessonID, url string, durationMs int, mediaType string) (Media, error)
+	DeleteLessonMedia(ctx context.Context, lessonID string) error
+
+	AddMaterial(ctx context.Context, lessonID, title, url, materialType string) (Material, error)
+	DeleteMaterial(ctx context.Context, lessonID, materialID string) error
 }

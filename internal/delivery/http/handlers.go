@@ -42,6 +42,16 @@ func NewCatalogHandler(uc *usecase.CatalogUseCase) *CatalogHandler {
 	return &CatalogHandler{catalogUseCase: uc}
 }
 
+// lessonSummaryDTO is one row of a course's lesson list, matching the
+// frontend's LessonSummary contract (lesson_id/lesson_type, not the domain
+// struct's raw id/type field names).
+type lessonSummaryDTO struct {
+	LessonID   string `json:"lesson_id"`
+	Title      string `json:"title"`
+	LessonType string `json:"lesson_type"`
+	Position   int    `json:"position"`
+}
+
 // GetCourseLessons handles GET /catalog/courses/{course_id}/lessons.
 // Public — no auth required. Returns all lessons ordered by position.
 func (h *CatalogHandler) GetCourseLessons(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +61,17 @@ func (h *CatalogHandler) GetCourseLessons(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, lessons)
+
+	summaries := make([]lessonSummaryDTO, 0, len(lessons))
+	for _, l := range lessons {
+		summaries = append(summaries, lessonSummaryDTO{
+			LessonID:   l.ID,
+			Title:      l.Title,
+			LessonType: l.Type,
+			Position:   l.Position,
+		})
+	}
+	writeJSON(w, http.StatusOK, summaries)
 }
 
 // GetCourses handles GET /catalog/courses

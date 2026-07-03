@@ -170,6 +170,43 @@ func TestRequireAuth_ValidToken_SetsActorInContext(t *testing.T) {
 
 // --- RequireEntitlement ---
 
+// middlewareCatalogRepo implements domain.CatalogRepository for middleware
+// tests. By default GetByID errors (course not found), so the teacher
+// self-preview bypass never fires and existing grant-based tests are
+// unaffected unless a course is explicitly configured.
+type middlewareCatalogRepo struct {
+	course domain.Course
+	err    error
+}
+
+func (s *middlewareCatalogRepo) GetCourses(_ domain.CourseListParams) ([]domain.Course, int, error) {
+	return nil, 0, nil
+}
+
+func (s *middlewareCatalogRepo) GetByID(_ context.Context, _ string) (domain.Course, error) {
+	return s.course, s.err
+}
+
+func (s *middlewareCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
+	return nil, nil
+}
+
+func (s *middlewareCatalogRepo) Create(_ context.Context, c domain.Course) (domain.Course, error) {
+	return c, nil
+}
+
+func (s *middlewareCatalogRepo) Update(_ context.Context, c domain.Course) (domain.Course, error) {
+	return c, nil
+}
+
+func (s *middlewareCatalogRepo) Delete(_ context.Context, _ string) error { return nil }
+
+// noCourseCatalogRepo is a middlewareCatalogRepo preconfigured to always
+// report the course as not found, so the teacher bypass never fires.
+func noCourseCatalogRepo() *middlewareCatalogRepo {
+	return &middlewareCatalogRepo{err: domain.ErrCourseNotFound}
+}
+
 func entitlementRequest(courseID, lessonID string, claims domain.Claims) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r = r.WithContext(context.WithValue(r.Context(), claimsContextKey, claims))
@@ -179,7 +216,7 @@ func entitlementRequest(courseID, lessonID string, claims domain.Claims) *http.R
 }
 
 func TestRequireEntitlement_MissingClaims(t *testing.T) {
-	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: true}, noopRecorder())
+	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: true}, noCourseCatalogRepo(), noopRecorder())
 	next := &nextCapture{}
 
 	w := httptest.NewRecorder()
@@ -195,7 +232,7 @@ func TestRequireEntitlement_MissingClaims(t *testing.T) {
 }
 
 func TestRequireEntitlement_AccessGranted_CallsNext(t *testing.T) {
-	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: true}, noopRecorder())
+	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: true}, noCourseCatalogRepo(), noopRecorder())
 	next := &nextCapture{}
 
 	w := httptest.NewRecorder()
@@ -208,7 +245,7 @@ func TestRequireEntitlement_AccessGranted_CallsNext(t *testing.T) {
 }
 
 func TestRequireEntitlement_NoGrant_Returns403(t *testing.T) {
-	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: false}, noopRecorder())
+	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: false}, noCourseCatalogRepo(), noopRecorder())
 	next := &nextCapture{}
 
 	w := httptest.NewRecorder()
@@ -224,7 +261,7 @@ func TestRequireEntitlement_NoGrant_Returns403(t *testing.T) {
 }
 
 func TestRequireEntitlement_GrantCheckError_Returns500(t *testing.T) {
-	mw := RequireEntitlement(&middlewareEntRepo{grantErr: domain.ErrForbidden}, usecase.NewAnalyticsRecorder(domain.Source{}))
+	mw := RequireEntitlement(&middlewareEntRepo{grantErr: domain.ErrForbidden}, noCourseCatalogRepo(), usecase.NewAnalyticsRecorder(domain.Source{}))
 	next := &nextCapture{}
 
 	w := httptest.NewRecorder()
@@ -233,5 +270,38 @@ func TestRequireEntitlement_GrantCheckError_Returns500(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestRequireEntitlement_OwningTeacher_BypassesGrantCheck(t *testing.T) {
+	catalog := &middlewareCatalogRepo{course: domain.Course{ID: "c1", TeacherID: "teacher-1"}}
+	// No active grant at all — the teacher must still get through because
+	// they own the course.
+	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: false}, catalog, noopRecorder())
+	next := &nextCapture{}
+
+	w := httptest.NewRecorder()
+	r := entitlementRequest("c1", "l1", domain.Claims{UserID: "teacher-1", Role: domain.RoleTeacher})
+	mw(next.handler)(w, r)
+
+	if !next.called {
+		t.Error("next handler must be called for the course's own teacher, even without a grant")
+	}
+}
+
+func TestRequireEntitlement_OtherTeacher_StillNeedsGrant(t *testing.T) {
+	catalog := &middlewareCatalogRepo{course: domain.Course{ID: "c1", TeacherID: "teacher-1"}}
+	mw := RequireEntitlement(&middlewareEntRepo{hasGrant: false}, catalog, noopRecorder())
+	next := &nextCapture{}
+
+	w := httptest.NewRecorder()
+	r := entitlementRequest("c1", "l1", domain.Claims{UserID: "teacher-2", Role: domain.RoleTeacher})
+	mw(next.handler)(w, r)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 for a teacher who doesn't own the course", w.Code)
+	}
+	if next.called {
+		t.Error("next must not be called for a teacher who doesn't own the course")
 	}
 }

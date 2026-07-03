@@ -29,6 +29,16 @@ func (c *catalogHandlerRepo) GetByTeacherID(_ context.Context, _ string) ([]doma
 	return c.courses, c.coursesErr
 }
 
+func (c *catalogHandlerRepo) Create(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (c *catalogHandlerRepo) Update(_ context.Context, course domain.Course) (domain.Course, error) {
+	return course, nil
+}
+
+func (c *catalogHandlerRepo) Delete(_ context.Context, _ string) error { return nil }
+
 // --- HelloHandler ---
 
 func TestHelloHandler_ReturnsHelloWorld(t *testing.T) {

@@ -745,6 +745,384 @@ paths:
                         days_inactive:
                           type: integer
 
+  # ---------------------------------------------------------
+  # TEACHER CONTENT AUTHORING (courses, lessons, media, materials)
+  # ---------------------------------------------------------
+  /teacher/courses:
+    post:
+      summary: Create a new draft course owned by the caller
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseInput'
+      responses:
+        '201':
+          description: Course created (always starts as draft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          description: Invalid input
+        '403':
+          description: Teacher role required
+
+  /teacher/courses/{course_id}:
+    patch:
+      summary: Update an owned course's fields and status
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CourseInput'
+                - type: object
+                  required:
+                    - status
+                  properties:
+                    status:
+                      type: string
+                      enum: [draft, published, archived]
+      responses:
+        '200':
+          description: Updated course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          description: Invalid input
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course not found
+    delete:
+      summary: Delete a draft course (published/archived courses must be archived instead)
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Course deleted
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course not found
+        '409':
+          description: Course is not a draft
+
+  /teacher/courses/{course_id}/lessons:
+    post:
+      summary: Append a new lesson to an owned course
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonInput'
+      responses:
+        '201':
+          description: Lesson created at the end of the course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherLesson'
+        '400':
+          description: Invalid input
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course not found
+
+  /teacher/courses/{course_id}/lessons/order:
+    put:
+      summary: Reorder an owned course's lessons
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - lesson_ids
+              properties:
+                lesson_ids:
+                  type: array
+                  description: Every lesson id in the course, in the desired order.
+                  items:
+                    type: string
+      responses:
+        '204':
+          description: Lessons reordered
+        '400':
+          description: lesson_ids doesn't match the course's current lessons
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course not found
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}:
+    patch:
+      summary: Update an owned lesson's title/type
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonInput'
+      responses:
+        '200':
+          description: Updated lesson
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherLesson'
+        '400':
+          description: Invalid input
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+    delete:
+      summary: Delete a lesson (and its media/materials)
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Lesson deleted
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/media:
+    put:
+      summary: Replace a lesson's playable media asset
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+                - media_type
+              properties:
+                url:
+                  type: string
+                  format: uri
+                duration_seconds:
+                  type: integer
+                  minimum: 0
+                media_type:
+                  type: string
+                  enum: [video, audio]
+      responses:
+        '200':
+          description: Media set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherMedia'
+        '400':
+          description: Invalid input
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+    delete:
+      summary: Remove a lesson's media asset, if any
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Media removed
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/materials:
+    post:
+      summary: Attach a downloadable material to a lesson
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - url
+              properties:
+                title:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                type:
+                  type: string
+                  description: Free-form attachment kind, e.g. "pdf", "zip", "link".
+      responses:
+        '201':
+          description: Material attached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherMaterial'
+        '400':
+          description: Invalid input
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}:
+    delete:
+      summary: Remove a single material from a lesson
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: material_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Material removed
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course, lesson, or material not found
+
 components:
   securitySchemes:
     bearerAuth:
@@ -864,6 +1242,10 @@ components:
         duration_seconds:
           type: integer
           description: Length of the primary media in seconds (0 when unknown).
+        media_type:
+          type: string
+          enum: [video, audio]
+          description: Type of the primary media asset. Omitted when the lesson has no media.
         materials:
           type: array
           items:
@@ -877,6 +1259,9 @@ components:
     Material:
       type: object
       properties:
+        id:
+          type: string
+          description: Present so the owning teacher's editor can reference this material (e.g. to delete it).
         title:
           type: string
         url:
@@ -932,3 +1317,71 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CourseResult'
+    CourseInput:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        subject:
+          type: string
+          description: Defaults to "general" when omitted.
+        price:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          description: Defaults to "USD" when omitted.
+    LessonInput:
+      type: object
+      required:
+        - title
+        - lesson_type
+      properties:
+        title:
+          type: string
+        lesson_type:
+          type: string
+          enum: [video, text, quiz, mixed]
+    TeacherLesson:
+      type: object
+      properties:
+        lesson_id:
+          type: string
+        course_id:
+          type: string
+        title:
+          type: string
+        lesson_type:
+          type: string
+          enum: [video, text, quiz, mixed]
+        position:
+          type: integer
+    TeacherMedia:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        duration_seconds:
+          type: integer
+        media_type:
+          type: string
+          enum: [video, audio]
+    TeacherMaterial:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        type:
+          type: string

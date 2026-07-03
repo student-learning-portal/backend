@@ -10,14 +10,15 @@ import (
 // Handlers groups the per-domain HTTP handlers so the router assembly stays a
 // single dependency bundle rather than a long positional parameter list.
 type Handlers struct {
-	Catalog     *CatalogHandler
-	Auth        *AuthHandler
-	Purchase    *PurchaseHandler
-	Player      *PlayerHandler
-	UserCourses *UserCoursesHandler
-	Profile     *ProfileHandler
-	Analytics   *AnalyticsHandler
-	Results     *ResultsHandler
+	Catalog        *CatalogHandler
+	Auth           *AuthHandler
+	Purchase       *PurchaseHandler
+	Player         *PlayerHandler
+	UserCourses    *UserCoursesHandler
+	Profile        *ProfileHandler
+	Analytics      *AnalyticsHandler
+	Results        *ResultsHandler
+	TeacherContent *TeacherContentHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -27,6 +28,7 @@ func NewRouter(
 	h Handlers,
 	tokens domain.TokenService,
 	entitlements domain.EntitlementRepository,
+	catalog domain.CatalogRepository,
 	analytics *usecase.AnalyticsRecorder,
 	uploadsDir string,
 ) http.Handler {
@@ -45,7 +47,7 @@ func NewRouter(
 	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}", h.Auth.GetTeacher)
 
 	auth := RequireAuth(tokens)
-	guard := RequireEntitlement(entitlements, analytics)
+	guard := RequireEntitlement(entitlements, catalog, analytics)
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
 	mux.HandleFunc("GET /api/v1/users/me/results", auth(h.Results.MyResults))
@@ -78,6 +80,22 @@ func NewRouter(
 	// Analytics: role (+ ownership, for the teacher view) are enforced inside the handlers.
 	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", auth(h.Analytics.TeacherDashboard))
 	mux.HandleFunc("GET /api/v1/analytics/student/me", auth(h.Analytics.StudentDashboard))
+
+	// Teacher course/lesson authoring: role + ownership are enforced inside the handlers.
+	mux.HandleFunc("POST /api/v1/teacher/courses", auth(h.TeacherContent.CreateCourse))
+	mux.HandleFunc("PATCH /api/v1/teacher/courses/{course_id}", auth(h.TeacherContent.UpdateCourse))
+	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}", auth(h.TeacherContent.DeleteCourse))
+
+	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons", auth(h.TeacherContent.CreateLesson))
+	mux.HandleFunc("PUT /api/v1/teacher/courses/{course_id}/lessons/order", auth(h.TeacherContent.ReorderLessons))
+	mux.HandleFunc("PATCH /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}", auth(h.TeacherContent.UpdateLesson))
+	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}", auth(h.TeacherContent.DeleteLesson))
+
+	mux.HandleFunc("PUT /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.SetLessonMedia))
+	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.DeleteLessonMedia))
+
+	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
+	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", auth(h.TeacherContent.DeleteMaterial))
 
 	return WithLogContext(mux)
 }

@@ -42,6 +42,30 @@ func (s *stubLessonRepo) GetLessonMaterials(_ context.Context, _ string) ([]doma
 	return s.materials, nil
 }
 
+func (s *stubLessonRepo) CreateLesson(_ context.Context, courseID, title, lessonType string) (domain.Lesson, error) {
+	return domain.Lesson{CourseID: courseID, Title: title, Type: lessonType}, nil
+}
+
+func (s *stubLessonRepo) UpdateLesson(_ context.Context, courseID, lessonID, title, lessonType string) (domain.Lesson, error) {
+	return domain.Lesson{ID: lessonID, CourseID: courseID, Title: title, Type: lessonType}, s.lessonErr
+}
+
+func (s *stubLessonRepo) ReorderLessons(_ context.Context, _ string, _ []string) error { return nil }
+
+func (s *stubLessonRepo) DeleteLesson(_ context.Context, _, _ string) error { return s.lessonErr }
+
+func (s *stubLessonRepo) SetLessonMedia(_ context.Context, lessonID, url string, durationMs int, mediaType string) (domain.Media, error) {
+	return domain.Media{LessonID: lessonID, URL: url, DurationMs: durationMs, Type: mediaType}, nil
+}
+
+func (s *stubLessonRepo) DeleteLessonMedia(_ context.Context, _ string) error { return nil }
+
+func (s *stubLessonRepo) AddMaterial(_ context.Context, lessonID, title, url, materialType string) (domain.Material, error) {
+	return domain.Material{LessonID: lessonID, Title: title, URL: url, Type: materialType}, nil
+}
+
+func (s *stubLessonRepo) DeleteMaterial(_ context.Context, _, _ string) error { return nil }
+
 type stubProgressRepo struct {
 	store map[string]domain.ProgressState
 }

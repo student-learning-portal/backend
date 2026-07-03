@@ -33,6 +33,30 @@ func (f *fakeLessonRepo) GetLessonMaterials(_ context.Context, _ string) ([]doma
 	return f.materials, nil
 }
 
+func (f *fakeLessonRepo) CreateLesson(_ context.Context, courseID, title, lessonType string) (domain.Lesson, error) {
+	return domain.Lesson{CourseID: courseID, Title: title, Type: lessonType}, nil
+}
+
+func (f *fakeLessonRepo) UpdateLesson(_ context.Context, courseID, lessonID, title, lessonType string) (domain.Lesson, error) {
+	return domain.Lesson{ID: lessonID, CourseID: courseID, Title: title, Type: lessonType}, f.lessonErr
+}
+
+func (f *fakeLessonRepo) ReorderLessons(_ context.Context, _ string, _ []string) error { return nil }
+
+func (f *fakeLessonRepo) DeleteLesson(_ context.Context, _, _ string) error { return f.lessonErr }
+
+func (f *fakeLessonRepo) SetLessonMedia(_ context.Context, lessonID, url string, durationMs int, mediaType string) (domain.Media, error) {
+	return domain.Media{LessonID: lessonID, URL: url, DurationMs: durationMs, Type: mediaType}, nil
+}
+
+func (f *fakeLessonRepo) DeleteLessonMedia(_ context.Context, _ string) error { return nil }
+
+func (f *fakeLessonRepo) AddMaterial(_ context.Context, lessonID, title, url, materialType string) (domain.Material, error) {
+	return domain.Material{LessonID: lessonID, Title: title, URL: url, Type: materialType}, nil
+}
+
+func (f *fakeLessonRepo) DeleteMaterial(_ context.Context, _, _ string) error { return nil }
+
 // fakeProgressRepo is an in-memory domain.ProgressRepository for tests.
 type fakeProgressRepo struct {
 	store map[string]domain.ProgressState
