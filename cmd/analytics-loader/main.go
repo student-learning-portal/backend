@@ -7,10 +7,12 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/student-learning-portal/backend/internal/database"
+	"github.com/student-learning-portal/backend/internal/logging"
 )
 
 const refreshTimeout = 5 * time.Minute
@@ -18,6 +20,9 @@ const refreshTimeout = 5 * time.Minute
 func main() {
 	full := flag.Bool("full", false, "recompute the rollup from the entire event_log/access_grant history, ignoring the incremental watermark (manual reconciliation)")
 	flag.Parse()
+
+	logging.Init("analytics-loader")
+	log := logging.L()
 
 	database.InitDB()
 
@@ -34,7 +39,11 @@ func main() {
 		err = repo.RefreshStudentCourseRollup(ctx)
 	}
 	if err != nil {
-		log.Fatalf("analytics-loader: refresh failed: %v", err)
+		log.Error("analytics-loader: refresh failed", slog.Bool("full", *full), slog.Any("error", err))
+		os.Exit(1)
 	}
-	log.Printf("analytics-loader: student_course rollup refreshed in %s (full=%v)", time.Since(start), *full)
+	log.Info("analytics-loader: student_course rollup refreshed",
+		slog.Duration("duration", time.Since(start)),
+		slog.Bool("full", *full),
+	)
 }

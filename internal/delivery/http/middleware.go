@@ -2,12 +2,14 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/student-learning-portal/backend/internal/domain"
+	"github.com/student-learning-portal/backend/internal/logging"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
 
@@ -89,6 +91,11 @@ func RequireEntitlement(
 
 			allowed, err := entRepo.HasActiveGrant(r.Context(), claims.UserID, courseID)
 			if err != nil {
+				logging.FromContext(r.Context()).Error("entitlement check failed",
+					slog.String("course_id", courseID),
+					slog.String("lesson_id", lessonID),
+					slog.Any("error", err),
+				)
 				writeError(w, http.StatusInternalServerError, "access check failed")
 				return
 			}
@@ -98,7 +105,7 @@ func RequireEntitlement(
 				decision, denyReason = "deny", "no_active_grant"
 			}
 
-			_ = entRepo.LogAccessCheck(r.Context(), domain.AccessCheckLog{
+			if err := entRepo.LogAccessCheck(r.Context(), domain.AccessCheckLog{
 				EventID:    uuid.NewString(),
 				ActorID:    claims.UserID,
 				CourseID:   courseID,
@@ -106,7 +113,14 @@ func RequireEntitlement(
 				Decision:   decision,
 				DenyReason: denyReason,
 				CheckedAt:  time.Now(),
-			})
+			}); err != nil {
+				logging.FromContext(r.Context()).Error("failed to write access_check_log",
+					slog.String("course_id", courseID),
+					slog.String("lesson_id", lessonID),
+					slog.String("decision", decision),
+					slog.Any("error", err),
+				)
+			}
 
 			analytics.Record(r.Context(), domain.EventAccessCheck, domain.PIINone, map[string]any{
 				keyCourseID:   courseID,

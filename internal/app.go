@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +11,7 @@ import (
 	delivery "github.com/student-learning-portal/backend/internal/delivery/http"
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/eventlog"
+	"github.com/student-learning-portal/backend/internal/logging"
 	"github.com/student-learning-portal/backend/internal/security"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
@@ -24,6 +25,9 @@ const (
 // Run is the main application assembly point.
 // It sets up dependencies, database connections, and starts the HTTP server.
 func Run() {
+	logging.Init("portal")
+	logging.L().Info("starting portal backend")
+
 	database.InitDB()
 
 	analyticsRepo := database.NewPostgresAnalyticsRepository(database.DB)
@@ -46,7 +50,8 @@ func Run() {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		log.Fatal("JWT_SECRET environment variable must be set")
+		logging.L().Error("JWT_SECRET environment variable must be set")
+		os.Exit(1)
 	}
 	tokens := security.NewJWTTokenService(jwtSecret, tokenTTL)
 
@@ -67,7 +72,11 @@ func Run() {
 	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
 	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
-		log.Fatalf("failed to create uploads directory: %v", err)
+		logging.L().Error("failed to create uploads directory",
+			slog.String("uploads_dir", uploadsDir),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
@@ -87,7 +96,7 @@ func Run() {
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)
 
 	port := ":8080"
-	log.Printf("Server listening on port %s", port)
+	logging.L().Info("server listening", slog.String("port", port))
 	srv := &http.Server{
 		Addr:         port,
 		Handler:      router,
@@ -96,7 +105,8 @@ func Run() {
 		IdleTimeout:  serverIdleTimeout,
 	}
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		logging.L().Error("server failed", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
 

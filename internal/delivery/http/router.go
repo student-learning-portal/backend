@@ -23,7 +23,8 @@ type Handlers struct {
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
 // The returned handler is wrapped in WithLogContext so every request carries the
-// request-scoped logging context the analytics recorder reads.
+// request-scoped logging context the analytics recorder reads, and in
+// WithAccessLog so every request emits a structured operational log line.
 func NewRouter(
 	h Handlers,
 	tokens domain.TokenService,
@@ -97,5 +98,5 @@ func NewRouter(
 	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", auth(h.TeacherContent.DeleteMaterial))
 
-	return WithLogContext(mux)
+	return WithLogContext(WithAccessLog(mux))
 }

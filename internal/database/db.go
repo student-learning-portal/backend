@@ -3,11 +3,12 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers pgx as the "pgx" driver for database/sql
+	"github.com/student-learning-portal/backend/internal/logging"
 )
 
 // DB is the shared connection pool used by the repositories.
@@ -33,7 +34,8 @@ func InitDB() {
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
-		log.Fatalf("failed to open database connection: %v", err)
+		logging.L().Error("failed to open database connection", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	var pingErr error
@@ -41,15 +43,23 @@ func InitDB() {
 		if pingErr = db.Ping(); pingErr == nil {
 			break
 		}
-		log.Printf("database not ready yet (attempt %d/%d): %v", attempt, pingRetries, pingErr)
+		logging.L().Warn("database not ready yet",
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", pingRetries),
+			slog.Any("error", pingErr),
+		)
 		time.Sleep(pingDelay)
 	}
 	if pingErr != nil {
-		log.Fatalf("failed to ping database after %d attempts: %v", pingRetries, pingErr)
+		logging.L().Error("failed to ping database after retries",
+			slog.Int("attempts", pingRetries),
+			slog.Any("error", pingErr),
+		)
+		os.Exit(1)
 	}
 
 	DB = db
-	log.Println("Database connection established")
+	logging.L().Info("database connection established")
 }
 
 func envOrDefault(key, fallback string) string {
