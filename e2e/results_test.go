@@ -17,6 +17,8 @@ type studentResults struct {
 		LessonsTotal     int     `json:"lessons_total"`
 		LessonsCompleted int     `json:"lessons_completed"`
 		ProgressPercent  float64 `json:"progress_percent"`
+		Status           string  `json:"status"`
+		DaysInactive     int     `json:"days_inactive"`
 	} `json:"courses"`
 }
 
@@ -72,6 +74,10 @@ func TestResults_AggregatesProgressAcrossEnrolledCourses(t *testing.T) {
 	if res.Courses[1].Title != "Beta" || res.Courses[1].ProgressPercent != 100 {
 		t.Errorf("Beta = %+v, want 100%%", res.Courses[1])
 	}
+	// Both courses were just touched, well above the min-progress threshold.
+	if res.Courses[0].Status != domain.RiskOnTrack || res.Courses[1].Status != domain.RiskOnTrack {
+		t.Errorf("courses = %+v, want both ON_TRACK", res.Courses)
+	}
 	// Overall is lesson-weighted: (1 + 1) / (2 + 1) = 66.67%.
 	if res.OverallProgressPercent != 66.67 {
 		t.Errorf("overall = %v, want 66.67", res.OverallProgressPercent)
@@ -115,6 +121,31 @@ func TestResults_ExcludesRefundedCourse(t *testing.T) {
 	e.decode(resp, &res)
 	if res.CoursesEnrolled != 0 {
 		t.Errorf("courses_enrolled = %d, want 0 (grant revoked)", res.CoursesEnrolled)
+	}
+}
+
+func TestResults_UntouchedCourseIsAtRisk(t *testing.T) {
+	e := newTestEnv(t)
+	teacher, _ := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+	courseID := e.insertCourse(teacher, "Go", "Programming", 10, "published")
+	e.insertLesson(courseID, "Intro", "video", 1)
+	e.grantAccess(studentTok, courseID)
+
+	resp := e.do(http.MethodGet, "/api/v1/users/me/results", studentTok, nil)
+	e.requireStatus(resp, http.StatusOK)
+	var res studentResults
+	e.decode(resp, &res)
+
+	if len(res.Courses) != 1 {
+		t.Fatalf("courses len = %d, want 1", len(res.Courses))
+	}
+	// Enrolled but never opened a lesson -> shows immediately at 0%, at risk.
+	if res.Courses[0].ProgressPercent != 0 {
+		t.Errorf("progress = %v, want 0", res.Courses[0].ProgressPercent)
+	}
+	if res.Courses[0].Status != domain.RiskAtRisk {
+		t.Errorf("status = %s, want %s (never active)", res.Courses[0].Status, domain.RiskAtRisk)
 	}
 }
 

@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // CourseResult is a learner's completion standing in one enrolled course.
 // A lesson counts as completed once its saved progress reaches 100% — the same
@@ -11,6 +14,12 @@ type CourseResult struct {
 	LessonsTotal     int     `json:"lessons_total"`
 	LessonsCompleted int     `json:"lessons_completed"`
 	ProgressPercent  float64 `json:"progress_percent"`
+	Status           string  `json:"status"`
+	DaysInactive     int     `json:"days_inactive"`
+	// LastActivity is the most recent progress_state.updated_at for this course.
+	// Nil means the learner is enrolled but has never saved progress. Internal
+	// input to ClassifyRisk, not part of the response.
+	LastActivity *time.Time `json:"-"`
 }
 
 // StudentResults is a learner's aggregated progress across every course they are

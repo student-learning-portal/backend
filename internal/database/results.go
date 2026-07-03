@@ -29,14 +29,17 @@ func (r *PostgresResultsRepository) StudentResults(ctx context.Context, actorID 
 		`SELECT c.id::text,
 		        c.title,
 		        COALESCE(lt.lessons_total, 0),
-		        COALESCE(pc.lessons_completed, 0)
+		        COALESCE(pc.lessons_completed, 0),
+		        pc.last_activity
 		 FROM courses c
 		 LEFT JOIN (
 		     SELECT course_id, count(*) AS lessons_total
 		     FROM lessons GROUP BY course_id
 		 ) lt ON lt.course_id = c.id
 		 LEFT JOIN (
-		     SELECT course_id, count(*) FILTER (WHERE percent_complete >= 100) AS lessons_completed
+		     SELECT course_id,
+		            count(*) FILTER (WHERE percent_complete >= 100) AS lessons_completed,
+		            max(updated_at) AS last_activity
 		     FROM progress_state WHERE actor_id = $1 GROUP BY course_id
 		 ) pc ON pc.course_id = c.id::text
 		 WHERE EXISTS (
@@ -53,9 +56,16 @@ func (r *PostgresResultsRepository) StudentResults(ctx context.Context, actorID 
 
 	results := []domain.CourseResult{}
 	for rows.Next() {
-		var cr domain.CourseResult
-		if err := rows.Scan(&cr.CourseID, &cr.Title, &cr.LessonsTotal, &cr.LessonsCompleted); err != nil {
+		var (
+			cr           domain.CourseResult
+			lastActivity sql.NullTime
+		)
+		if err := rows.Scan(&cr.CourseID, &cr.Title, &cr.LessonsTotal, &cr.LessonsCompleted, &lastActivity); err != nil {
 			return nil, fmt.Errorf("scan student result: %w", err)
+		}
+		if lastActivity.Valid {
+			t := lastActivity.Time
+			cr.LastActivity = &t
 		}
 		results = append(results, cr)
 	}

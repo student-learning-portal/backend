@@ -62,7 +62,7 @@ func Run() {
 	userCoursesUseCase := usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)
 
 	resultsRepo := database.NewPostgresResultsRepository(database.DB)
-	resultsUseCase := usecase.NewResultsUseCase(resultsRepo)
+	resultsUseCase := usecase.NewResultsUseCase(resultsRepo, domain.DefaultRiskThresholds)
 
 	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
 	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission

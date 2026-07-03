@@ -912,6 +912,11 @@ components:
         progress_percent:
           type: number
           description: lessons_completed / lessons_total as a 0–100 value.
+        status:
+          type: string
+          enum: [ON_TRACK, AT_RISK]
+        days_inactive:
+          type: integer
     StudentResults:
       type: object
       properties:

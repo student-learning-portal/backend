@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/student-learning-portal/backend/internal/domain"
 )
@@ -18,7 +19,7 @@ func (f *fakeResultsRepo) StudentResults(_ context.Context, _ string) ([]domain.
 }
 
 func TestMyResults_Empty(t *testing.T) {
-	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{}})
+	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{}}, domain.DefaultRiskThresholds)
 	got, err := uc.MyResults(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("MyResults: %v", err)
@@ -35,7 +36,7 @@ func TestMyResults_PerCourseAndOverall(t *testing.T) {
 	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{
 		{CourseID: "a", Title: "A", LessonsTotal: 5, LessonsCompleted: 2}, // 40%, partial
 		{CourseID: "b", Title: "B", LessonsTotal: 3, LessonsCompleted: 3}, // 100%, complete
-	}})
+	}}, domain.DefaultRiskThresholds)
 
 	got, err := uc.MyResults(context.Background(), "u1")
 	if err != nil {
@@ -62,7 +63,7 @@ func TestMyResults_PerCourseAndOverall(t *testing.T) {
 func TestMyResults_RoundsToTwoDecimals(t *testing.T) {
 	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{
 		{CourseID: "a", Title: "A", LessonsTotal: 3, LessonsCompleted: 1}, // 33.333...%
-	}})
+	}}, domain.DefaultRiskThresholds)
 	got, err := uc.MyResults(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("MyResults: %v", err)
@@ -75,7 +76,7 @@ func TestMyResults_RoundsToTwoDecimals(t *testing.T) {
 func TestMyResults_CourseWithNoLessons(t *testing.T) {
 	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{
 		{CourseID: "a", Title: "A", LessonsTotal: 0, LessonsCompleted: 0},
-	}})
+	}}, domain.DefaultRiskThresholds)
 	got, err := uc.MyResults(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("MyResults: %v", err)
@@ -93,9 +94,39 @@ func TestMyResults_CourseWithNoLessons(t *testing.T) {
 }
 
 func TestMyResults_RepoError(t *testing.T) {
-	uc := NewResultsUseCase(&fakeResultsRepo{err: errors.New("db down")})
+	uc := NewResultsUseCase(&fakeResultsRepo{err: errors.New("db down")}, domain.DefaultRiskThresholds)
 	_, err := uc.MyResults(context.Background(), "u1")
 	if err == nil {
 		t.Fatal("expected error to propagate")
+	}
+}
+
+func TestMyResults_RiskStatus(t *testing.T) {
+	now := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
+	recent := now.Add(-1 * 24 * time.Hour)
+	stale := now.Add(-10 * 24 * time.Hour)
+
+	uc := NewResultsUseCase(&fakeResultsRepo{courses: []domain.CourseResult{
+		// High progress, active recently -> on track.
+		{CourseID: "a", Title: "A", LessonsTotal: 10, LessonsCompleted: 8, LastActivity: &recent},
+		// High progress, but inactive too long -> at risk.
+		{CourseID: "b", Title: "B", LessonsTotal: 10, LessonsCompleted: 8, LastActivity: &stale},
+		// Never touched -> at risk.
+		{CourseID: "c", Title: "C", LessonsTotal: 10, LessonsCompleted: 0},
+	}}, domain.DefaultRiskThresholds)
+	uc.now = func() time.Time { return now }
+
+	got, err := uc.MyResults(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("MyResults: %v", err)
+	}
+	if got.Courses[0].Status != domain.RiskOnTrack {
+		t.Errorf("course A status = %s, want %s", got.Courses[0].Status, domain.RiskOnTrack)
+	}
+	if got.Courses[1].Status != domain.RiskAtRisk || got.Courses[1].DaysInactive != 10 {
+		t.Errorf("course B = %+v, want AT_RISK / 10 days inactive", got.Courses[1])
+	}
+	if got.Courses[2].Status != domain.RiskAtRisk {
+		t.Errorf("course C status = %s, want %s (never active)", got.Courses[2].Status, domain.RiskAtRisk)
 	}
 }

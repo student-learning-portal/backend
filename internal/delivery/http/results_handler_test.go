@@ -22,7 +22,7 @@ func (s *stubResultsRepo) StudentResults(_ context.Context, _ string) ([]domain.
 }
 
 func newResultsHandler(repo domain.ResultsRepository) *ResultsHandler {
-	return NewResultsHandler(usecase.NewResultsUseCase(repo))
+	return NewResultsHandler(usecase.NewResultsUseCase(repo, domain.DefaultRiskThresholds))
 }
 
 func resultsRequestWithClaims(userID string) *http.Request {
