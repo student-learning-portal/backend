@@ -382,6 +382,29 @@ paths:
         '401':
           description: Missing or invalid bearer token
 
+  /users/me/results:
+    get:
+      summary: Aggregated progress across the caller's enrolled courses
+      description: >
+        Returns the caller's completion percentage and lesson tallies for every
+        course they hold an active (non-revoked) entitlement for, ordered by
+        course title, plus an overall roll-up. A lesson counts as completed once
+        its saved progress reaches 100%. Not enrolled in anything yields an empty
+        list with zeroed totals.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's aggregated progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentResults'
+        '401':
+          description: Missing or invalid bearer token
+
   # ---------------------------------------------------------
   # PURCHASE (SANDBOX)
   # ---------------------------------------------------------
@@ -855,3 +878,32 @@ components:
         updated_at:
           type: string
           format: date-time
+    CourseResult:
+      type: object
+      properties:
+        course_id:
+          type: string
+        title:
+          type: string
+        lessons_total:
+          type: integer
+        lessons_completed:
+          type: integer
+        progress_percent:
+          type: number
+          description: lessons_completed / lessons_total as a 0–100 value.
+    StudentResults:
+      type: object
+      properties:
+        overall_progress_percent:
+          type: number
+          description: Completed lessons over total lessons across all enrolled courses (0–100).
+        courses_enrolled:
+          type: integer
+        courses_completed:
+          type: integer
+          description: Number of enrolled courses that are 100% complete.
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/CourseResult'
