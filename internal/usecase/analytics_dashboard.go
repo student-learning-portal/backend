@@ -79,3 +79,61 @@ func (uc *AnalyticsUseCase) TeacherDashboard(ctx context.Context, teacherID, cou
 	}
 	return result, nil
 }
+
+// DashboardCourse is one enrolled course's row in the student's own dashboard.
+type DashboardCourse struct {
+	CourseID         string
+	CourseTitle      string
+	ProgressPercent  float64
+	LessonsCompleted int
+	LessonsTotal     int
+	Status           string
+	DaysInactive     int
+}
+
+// StudentDashboardResult is the aggregated self-service view for one learner
+// across every course they are enrolled in.
+type StudentDashboardResult struct {
+	OverallProgress  float64
+	CoursesCompleted int
+	Courses          []DashboardCourse
+}
+
+// StudentDashboard returns the caller's own rolled-up standing across every
+// course they are enrolled in (per analytics_student_course). A learner with no
+// rollup rows yet (e.g. just enrolled, before the next loader run) gets a
+// zero-value result rather than an error.
+func (uc *AnalyticsUseCase) StudentDashboard(ctx context.Context, studentID string) (StudentDashboardResult, error) {
+	progress, err := uc.analytics.StudentCourseProgress(ctx, studentID)
+	if err != nil {
+		return StudentDashboardResult{}, err
+	}
+
+	now := uc.now()
+	result := StudentDashboardResult{Courses: make([]DashboardCourse, 0, len(progress))}
+	var progressSum float64
+	for _, p := range progress {
+		status, daysInactive := domain.ClassifyRisk(domain.StudentProgress{
+			ProgressPercent: p.ProgressPercent,
+			LastActivity:    p.LastActivity,
+		}, now, uc.thresholds)
+
+		progressSum += p.ProgressPercent
+		if p.LessonsTotal > 0 && p.LessonsCompleted >= p.LessonsTotal {
+			result.CoursesCompleted++
+		}
+		result.Courses = append(result.Courses, DashboardCourse{
+			CourseID:         p.CourseID,
+			CourseTitle:      p.CourseTitle,
+			ProgressPercent:  p.ProgressPercent,
+			LessonsCompleted: p.LessonsCompleted,
+			LessonsTotal:     p.LessonsTotal,
+			Status:           status,
+			DaysInactive:     daysInactive,
+		})
+	}
+	if len(progress) > 0 {
+		result.OverallProgress = progressSum / float64(len(progress))
+	}
+	return result, nil
+}

@@ -109,3 +109,79 @@ func TestAnalytics_ClassifiesAndOrdersStudents(t *testing.T) {
 		t.Errorf("students[1] = %+v, want %s / ON_TRACK", d.Students[1], onTrack)
 	}
 }
+
+type studentDashboard struct {
+	OverallProgress  float64 `json:"overall_progress"`
+	CoursesCompleted int     `json:"courses_completed"`
+	Courses          []struct {
+		CourseID         string  `json:"course_id"`
+		CourseTitle      string  `json:"course_title"`
+		ProgressPercent  float64 `json:"progress_percentage"`
+		LessonsCompleted int     `json:"lessons_completed"`
+		LessonsTotal     int     `json:"lessons_total"`
+		Status           string  `json:"status"`
+		DaysInactive     int     `json:"days_inactive"`
+	} `json:"courses"`
+}
+
+func TestStudentDashboard_RequiresStudentRole(t *testing.T) {
+	e := newTestEnv(t)
+	_, teacherTok := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+
+	resp := e.do(http.MethodGet, "/api/v1/analytics/student/me", teacherTok, nil)
+	e.requireStatus(resp, http.StatusForbidden)
+	if msg := e.errorMessage(resp); msg != "student role required" {
+		t.Errorf("error = %q, want 'student role required'", msg)
+	}
+}
+
+func TestStudentDashboard_NoEnrollmentsIsEmpty(t *testing.T) {
+	e := newTestEnv(t)
+	_, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+
+	resp := e.do(http.MethodGet, "/api/v1/analytics/student/me", studentTok, nil)
+	e.requireStatus(resp, http.StatusOK)
+	var d studentDashboard
+	e.decode(resp, &d)
+	if d.OverallProgress != 0 || d.CoursesCompleted != 0 || len(d.Courses) != 0 {
+		t.Fatalf("no-enrollment dashboard = %+v, want zero values", d)
+	}
+}
+
+func TestStudentDashboard_AggregatesAcrossOwnCoursesOnly(t *testing.T) {
+	e := newTestEnv(t)
+	teacherID, _ := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	studentID, studentTok := e.register("student@example.com", "Student", domain.RoleStudent)
+	otherID, _ := e.register("other@example.com", "Other Student", domain.RoleStudent)
+
+	courseA := e.insertCourse(teacherID, "Go", "Programming", 10, "published")
+	courseB := e.insertCourse(teacherID, "SQL", "Databases", 10, "published")
+	now := time.Now()
+	stale := now.Add(-30 * 24 * time.Hour)
+
+	e.insertRollup(courseA, studentID, 100.0, 5, 5, &now)  // completed, on track
+	e.insertRollup(courseB, studentID, 80.0, 4, 5, &stale) // at risk: inactivity
+	e.insertRollup(courseA, otherID, 10.0, 1, 5, &now)     // another learner's row, must not leak in
+
+	resp := e.do(http.MethodGet, "/api/v1/analytics/student/me", studentTok, nil)
+	e.requireStatus(resp, http.StatusOK)
+	var d studentDashboard
+	e.decode(resp, &d)
+
+	if d.CoursesCompleted != 1 {
+		t.Errorf("courses_completed = %d, want 1", d.CoursesCompleted)
+	}
+	if d.OverallProgress != 90.0 {
+		t.Errorf("overall_progress = %v, want 90", d.OverallProgress)
+	}
+	if len(d.Courses) != 2 {
+		t.Fatalf("courses = %d, want 2", len(d.Courses))
+	}
+	byID := map[string]string{d.Courses[0].CourseID: d.Courses[0].Status, d.Courses[1].CourseID: d.Courses[1].Status}
+	if byID[courseB] != domain.RiskAtRisk {
+		t.Errorf("courseB status = %q, want AT_RISK", byID[courseB])
+	}
+	if byID[courseA] != domain.RiskOnTrack {
+		t.Errorf("courseA status = %q, want ON_TRACK", byID[courseA])
+	}
+}

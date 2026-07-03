@@ -72,3 +72,45 @@ func (r *PostgresAnalyticsRepository) CourseStudentProgress(ctx context.Context,
 	}
 	return out, nil
 }
+
+// StudentCourseProgress reads a learner's rolled-up standing across every
+// course they are enrolled in, joining the course title for display and
+// ordering most recently active first (never-active courses last).
+func (r *PostgresAnalyticsRepository) StudentCourseProgress(ctx context.Context, studentID string) ([]domain.CourseProgress, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT a.course_id, COALESCE(c.title, ''), a.progress_percent,
+		        a.lessons_completed, a.lessons_total, a.last_activity_ts
+		 FROM analytics_student_course a
+		 LEFT JOIN courses c ON c.id::text = a.course_id
+		 WHERE a.actor_id = $1
+		 ORDER BY a.last_activity_ts DESC NULLS LAST, a.course_id ASC`,
+		studentID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query student course progress: %w", err)
+	}
+	defer rows.Close()
+
+	out := []domain.CourseProgress{}
+	for rows.Next() {
+		var (
+			p            domain.CourseProgress
+			lastActivity sql.NullTime
+		)
+		if err := rows.Scan(
+			&p.CourseID, &p.CourseTitle, &p.ProgressPercent,
+			&p.LessonsCompleted, &p.LessonsTotal, &lastActivity,
+		); err != nil {
+			return nil, fmt.Errorf("scan student course progress: %w", err)
+		}
+		if lastActivity.Valid {
+			t := lastActivity.Time
+			p.LastActivity = &t
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate student course progress: %w", err)
+	}
+	return out, nil
+}

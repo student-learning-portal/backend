@@ -70,6 +70,14 @@ Consumed by `GET /api/v1/analytics/teacher/dashboard?course_id=…`
 (`AnalyticsUseCase.TeacherDashboard`), which additionally enforces that the
 caller is the teacher who owns the course.
 
+The same classification is reused for the learner-facing view,
+`GET /api/v1/analytics/student/me` (`AnalyticsUseCase.StudentDashboard`): every
+row the caller has in the rollup, keyed by their own `actor_id` rather than a
+`course_id`. `overall_progress` is the mean `progress_percent` across those
+rows and `courses_completed` counts courses where `lessons_completed >=
+lessons_total > 0`. A learner with no rollup rows yet (enrolled but not yet
+picked up by the loader) gets zero values rather than an error.
+
 ---
 
 ## 4. Seeding
@@ -83,7 +91,6 @@ builds the rollup from them. See the header of that file for usage.
 ## 5. Future
 
 - Auto-refresh (trigger/queue) instead of manual loader runs.
-- Student-facing rollup for `GET /analytics/student/me`.
 - `assessment.*` signals (quiz scores) feeding the risk model.
 - Columnar store for `event_log` if behavioral volume outgrows Postgres
   (`logging-architecture.md` §5.5).

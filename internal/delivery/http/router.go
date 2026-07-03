@@ -73,8 +73,9 @@ func NewRouter(
 		auth(guard(h.Player.GetProgress)),
 	)
 
-	// Teacher analytics: ownership + role are enforced inside the handler.
+	// Analytics: role (+ ownership, for the teacher view) are enforced inside the handlers.
 	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", auth(h.Analytics.TeacherDashboard))
+	mux.HandleFunc("GET /api/v1/analytics/student/me", auth(h.Analytics.StudentDashboard))
 
 	return WithLogContext(mux)
 }

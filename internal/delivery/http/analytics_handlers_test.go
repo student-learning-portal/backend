@@ -13,12 +13,17 @@ import (
 )
 
 type stubAnalyticsRepo struct {
-	rows []domain.StudentProgress
-	err  error
+	rows       []domain.StudentProgress
+	err        error
+	courseRows []domain.CourseProgress
+	courseErr  error
 }
 
 func (s *stubAnalyticsRepo) CourseStudentProgress(_ context.Context, _ string) ([]domain.StudentProgress, error) {
 	return s.rows, s.err
+}
+func (s *stubAnalyticsRepo) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
+	return s.courseRows, s.courseErr
 }
 func (s *stubAnalyticsRepo) RefreshStudentCourseRollup(_ context.Context) error { return nil }
 
@@ -125,5 +130,75 @@ func TestTeacherDashboard_CourseNotFound(t *testing.T) {
 	h.TeacherDashboard(w, dashboardReq("missing", domain.RoleTeacher))
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func studentDashboardReq(role domain.Role) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "http://x/api/v1/analytics/student/me", nil)
+	return r.WithContext(context.WithValue(r.Context(), claimsContextKey,
+		domain.Claims{UserID: "student-1", Role: role}))
+}
+
+func TestStudentDashboard_OK(t *testing.T) {
+	now := time.Now()
+	recent := now.Add(-1 * 24 * time.Hour)
+
+	uc := usecase.NewAnalyticsUseCase(
+		&stubAnalyticsRepo{courseRows: []domain.CourseProgress{
+			{CourseID: "c-1", CourseTitle: "Go", ProgressPercent: 80, LessonsCompleted: 4, LessonsTotal: 5, LastActivity: &recent},
+			{CourseID: "c-2", CourseTitle: "SQL", ProgressPercent: 20, LessonsCompleted: 1, LessonsTotal: 5, LastActivity: &recent},
+		}},
+		&stubCatalogRepo{},
+		domain.DefaultRiskThresholds,
+	)
+	h := NewAnalyticsHandler(uc)
+
+	w := httptest.NewRecorder()
+	h.StudentDashboard(w, studentDashboardReq(domain.RoleStudent))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp studentDashboardDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.OverallProgress != 50 {
+		t.Errorf("overall_progress = %v, want 50", resp.OverallProgress)
+	}
+	if resp.CoursesCompleted != 0 {
+		t.Errorf("courses_completed = %d, want 0", resp.CoursesCompleted)
+	}
+	if len(resp.Courses) != 2 {
+		t.Fatalf("courses = %d, want 2", len(resp.Courses))
+	}
+	if resp.Courses[1].Status != domain.RiskAtRisk {
+		t.Errorf("courses[1] status = %q, want AT_RISK", resp.Courses[1].Status)
+	}
+}
+
+func TestStudentDashboard_RequiresStudentRole(t *testing.T) {
+	h := newAnalyticsHandler(domain.Course{}, nil, nil)
+	w := httptest.NewRecorder()
+	h.StudentDashboard(w, studentDashboardReq(domain.RoleTeacher))
+	if w.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", w.Code)
+	}
+}
+
+func TestStudentDashboard_EmptyRollupIsZeroValue(t *testing.T) {
+	h := newAnalyticsHandler(domain.Course{}, nil, nil)
+	w := httptest.NewRecorder()
+	h.StudentDashboard(w, studentDashboardReq(domain.RoleStudent))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp studentDashboardDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.OverallProgress != 0 || resp.CoursesCompleted != 0 || len(resp.Courses) != 0 {
+		t.Fatalf("empty-rollup dashboard = %+v, want zero values", resp)
 	}
 }

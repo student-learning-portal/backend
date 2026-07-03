@@ -11,12 +11,17 @@ import (
 
 // stubAnalyticsRepository implements domain.AnalyticsRepository for analytics dashboard tests.
 type stubAnalyticsRepository struct {
-	rows []domain.StudentProgress
-	err  error
+	rows       []domain.StudentProgress
+	err        error
+	courseRows []domain.CourseProgress
+	courseErr  error
 }
 
 func (s *stubAnalyticsRepository) CourseStudentProgress(_ context.Context, _ string) ([]domain.StudentProgress, error) {
 	return s.rows, s.err
+}
+func (s *stubAnalyticsRepository) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
+	return s.courseRows, s.courseErr
 }
 func (s *stubAnalyticsRepository) RefreshStudentCourseRollup(_ context.Context) error { return nil }
 
@@ -121,6 +126,60 @@ func TestTeacherDashboard_AnalyticsError(t *testing.T) {
 		domain.DefaultRiskThresholds,
 	)
 	_, err := uc.TeacherDashboard(context.Background(), "t-1", "c1")
+	if err == nil {
+		t.Fatal("expected error when analytics repo fails")
+	}
+}
+
+func TestStudentDashboard_Success(t *testing.T) {
+	now := time.Now()
+	recent := now.Add(-1 * 24 * time.Hour)
+	stale := now.Add(-30 * 24 * time.Hour)
+
+	uc := NewAnalyticsUseCase(
+		&stubAnalyticsRepository{courseRows: []domain.CourseProgress{
+			{CourseID: "c-done", CourseTitle: "Go", ProgressPercent: 100, LessonsCompleted: 5, LessonsTotal: 5, LastActivity: &recent},
+			{CourseID: "c-mid", CourseTitle: "SQL", ProgressPercent: 60, LessonsCompleted: 3, LessonsTotal: 5, LastActivity: &recent},
+			{CourseID: "c-stale", CourseTitle: "Rust", ProgressPercent: 80, LessonsCompleted: 4, LessonsTotal: 5, LastActivity: &stale},
+		}},
+		&stubCatalogRepository{},
+		domain.DefaultRiskThresholds,
+	)
+
+	res, err := uc.StudentDashboard(context.Background(), "student-1")
+	if err != nil {
+		t.Fatalf("StudentDashboard: %v", err)
+	}
+	if res.CoursesCompleted != 1 {
+		t.Errorf("courses_completed = %d, want 1", res.CoursesCompleted)
+	}
+	wantOverall := (100.0 + 60.0 + 80.0) / 3
+	if res.OverallProgress != wantOverall {
+		t.Errorf("overall_progress = %v, want %v", res.OverallProgress, wantOverall)
+	}
+	if len(res.Courses) != 3 {
+		t.Fatalf("courses = %d, want 3", len(res.Courses))
+	}
+	if res.Courses[2].Status != domain.RiskAtRisk {
+		t.Errorf("c-stale status = %q, want AT_RISK (inactive)", res.Courses[2].Status)
+	}
+}
+
+func TestStudentDashboard_NoEnrollments(t *testing.T) {
+	uc := NewAnalyticsUseCase(&stubAnalyticsRepository{}, &stubCatalogRepository{}, domain.DefaultRiskThresholds)
+	res, err := uc.StudentDashboard(context.Background(), "student-1")
+	if err != nil {
+		t.Fatalf("StudentDashboard: %v", err)
+	}
+	if res.OverallProgress != 0 || res.CoursesCompleted != 0 || len(res.Courses) != 0 {
+		t.Fatalf("no-enrollment dashboard = %+v, want zero values", res)
+	}
+}
+
+func TestStudentDashboard_AnalyticsError(t *testing.T) {
+	analyticsRepo := &stubAnalyticsRepository{courseErr: errors.New("rollup unavailable")}
+	uc := NewAnalyticsUseCase(analyticsRepo, &stubCatalogRepository{}, domain.DefaultRiskThresholds)
+	_, err := uc.StudentDashboard(context.Background(), "student-1")
 	if err == nil {
 		t.Fatal("expected error when analytics repo fails")
 	}

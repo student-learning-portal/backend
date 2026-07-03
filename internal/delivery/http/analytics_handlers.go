@@ -81,3 +81,62 @@ func (h *AnalyticsHandler) TeacherDashboard(w http.ResponseWriter, r *http.Reque
 		Students:       students,
 	})
 }
+
+// dashboardCourseDTO carries one enrolled course's row in the student's own
+// dashboard: the OpenAPI-documented aggregate fields are on the parent object,
+// this is the additive per-course breakdown the UI needs to render it.
+type dashboardCourseDTO struct {
+	CourseID         string  `json:"course_id"`
+	CourseTitle      string  `json:"course_title"`
+	ProgressPercent  float64 `json:"progress_percentage"`
+	LessonsCompleted int     `json:"lessons_completed"`
+	LessonsTotal     int     `json:"lessons_total"`
+	Status           string  `json:"status"`
+	DaysInactive     int     `json:"days_inactive"`
+}
+
+type studentDashboardDTO struct {
+	OverallProgress  float64              `json:"overall_progress"`
+	CoursesCompleted int                  `json:"courses_completed"`
+	Courses          []dashboardCourseDTO `json:"courses"`
+}
+
+// StudentDashboard handles GET /api/v1/analytics/student/me. RequireAuth runs
+// upstream; the caller only ever sees their own rollup, scoped by the token's
+// subject, so no further ownership check is needed.
+func (h *AnalyticsHandler) StudentDashboard(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication")
+		return
+	}
+	if claims.Role != domain.RoleStudent {
+		writeError(w, http.StatusForbidden, "student role required")
+		return
+	}
+
+	result, err := h.uc.StudentDashboard(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load dashboard")
+		return
+	}
+
+	courses := make([]dashboardCourseDTO, 0, len(result.Courses))
+	for _, c := range result.Courses {
+		courses = append(courses, dashboardCourseDTO{
+			CourseID:         c.CourseID,
+			CourseTitle:      c.CourseTitle,
+			ProgressPercent:  c.ProgressPercent,
+			LessonsCompleted: c.LessonsCompleted,
+			LessonsTotal:     c.LessonsTotal,
+			Status:           c.Status,
+			DaysInactive:     c.DaysInactive,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, studentDashboardDTO{
+		OverallProgress:  result.OverallProgress,
+		CoursesCompleted: result.CoursesCompleted,
+		Courses:          courses,
+	})
+}

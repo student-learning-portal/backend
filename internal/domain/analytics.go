@@ -71,13 +71,31 @@ func ClassifyRisk(p StudentProgress, now time.Time, cfg RiskThresholds) (status 
 	return RiskOnTrack, daysInactive
 }
 
+// CourseProgress is a single learner's rolled-up standing in one of their own
+// enrolled courses, read from the analytics_student_course rollup. It is the
+// student-facing counterpart to StudentProgress (which is scoped the other way:
+// one course, every learner).
+type CourseProgress struct {
+	CourseID         string
+	CourseTitle      string
+	ProgressPercent  float64
+	LessonsCompleted int
+	LessonsTotal     int
+	// LastActivity is the most recent player.* event timestamp for this
+	// (student, course). Nil means the learner is enrolled but has no activity.
+	LastActivity *time.Time
+}
+
 // AnalyticsRepository is the derived analytics layer over event_log. The rollup
 // is materialised by RefreshStudentCourseRollup (the loader) and read back per
-// course by CourseStudentProgress.
+// course by CourseStudentProgress, or per learner by StudentCourseProgress.
 type AnalyticsRepository interface {
 	// CourseStudentProgress returns the rolled-up standing of every enrolled
 	// learner in a course, ordered by progress ascending (worst first).
 	CourseStudentProgress(ctx context.Context, courseID string) ([]StudentProgress, error)
+	// StudentCourseProgress returns the rolled-up standing of every course a
+	// learner is enrolled in, ordered by most recently active first.
+	StudentCourseProgress(ctx context.Context, studentID string) ([]CourseProgress, error)
 	// RefreshStudentCourseRollup recomputes the analytics_student_course rollup
 	// from event_log (+ normalized tables). Safe to run repeatedly (upsert).
 	RefreshStudentCourseRollup(ctx context.Context) error
