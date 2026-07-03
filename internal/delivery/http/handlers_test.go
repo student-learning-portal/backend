@@ -176,3 +176,13 @@ func (p *paramCaptureCatalogRepo) GetByID(_ context.Context, _ string) (domain.C
 func (p *paramCaptureCatalogRepo) GetByTeacherID(_ context.Context, _ string) ([]domain.Course, error) {
 	return nil, nil
 }
+
+func (p *paramCaptureCatalogRepo) Create(_ context.Context, c domain.Course) (domain.Course, error) {
+	return c, nil
+}
+
+func (p *paramCaptureCatalogRepo) Update(_ context.Context, c domain.Course) (domain.Course, error) {
+	return c, nil
+}
+
+func (p *paramCaptureCatalogRepo) Delete(_ context.Context, _ string) error { return nil }

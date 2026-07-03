@@ -2,11 +2,13 @@ package usecase
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/student-learning-portal/backend/internal/domain"
+	"github.com/student-learning-portal/backend/internal/logging"
 )
 
 // AnalyticsRecorder builds event envelopes from request-scoped context and fans
@@ -72,7 +74,11 @@ func (a *AnalyticsRecorder) Record(ctx context.Context, name string, pii domain.
 
 	for _, sink := range a.sinks {
 		if err := sink.Emit(ctx, e); err != nil {
-			log.Printf("analytics: emit %s: %v", name, err)
+			logging.FromContext(ctx).Error("analytics: sink emit failed",
+				slog.String("event_name", name),
+				slog.String("sink", fmt.Sprintf("%T", sink)),
+				slog.Any("error", err),
+			)
 		}
 	}
 }

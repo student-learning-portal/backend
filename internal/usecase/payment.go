@@ -46,7 +46,7 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 	// Fast path: avoid charging at all when the buyer already owns the
 	// course (e.g. a double-click). The DB-level unique index on
 	// access_grant is the authoritative guard for the concurrent case this
-	// check can't catch (see CreateGrant below).
+	// check can't catch (see CreatePaymentAndGrant below).
 	has, err := uc.entitlements.HasActiveGrant(ctx, actorID, courseID)
 	if err != nil {
 		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
@@ -72,10 +72,6 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 		Sandbox:   true,
 		CreatedAt: now,
 	}
-	if err := uc.entitlements.CreatePayment(ctx, payment); err != nil {
-		uc.refund(ctx, actorID, course.Price)
-		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
-	}
 	grant := domain.AccessGrant{
 		GrantID:   uuid.NewString(),
 		ActorID:   actorID,
@@ -83,14 +79,17 @@ func (uc *PaymentUseCase) Checkout(ctx context.Context, actorID, courseID string
 		TxnID:     payment.TxnID,
 		GrantedAt: now,
 	}
-	if err := uc.entitlements.CreateGrant(ctx, grant); err != nil {
+	// Payment and grant are created atomically (CreatePaymentAndGrant): a
+	// failure here rolls back cleanly with no partial row persisted, so the
+	// wallet refund below is the only compensation needed.
+	if err := uc.entitlements.CreatePaymentAndGrant(ctx, payment, grant); err != nil {
 		uc.refund(ctx, actorID, course.Price)
 		if errors.Is(err, domain.ErrAlreadyPurchased) {
 			// Lost the race: a concurrent checkout for this course won the
 			// DB constraint first. The buyer was already refunded above.
 			return CheckoutResult{}, domain.ErrAlreadyPurchased
 		}
-		return CheckoutResult{}, fmt.Errorf("checkout: grant: %w", err)
+		return CheckoutResult{}, fmt.Errorf("checkout: %w", err)
 	}
 
 	return CheckoutResult{
@@ -121,21 +120,13 @@ func (uc *PaymentUseCase) Refund(ctx context.Context, actorID, courseID string) 
 	if err != nil {
 		return RefundResult{}, fmt.Errorf("refund: %w", err)
 	}
-	payment, err := uc.entitlements.GetPayment(ctx, grant.TxnID)
+	// SettleRefund atomically marks the payment refunded, revokes the grant,
+	// and credits the wallet, so a mid-refund failure can never revoke
+	// access without the buyer actually getting their money back.
+	payment, balance, err := uc.entitlements.SettleRefund(ctx, grant.TxnID)
 	if err != nil {
 		return RefundResult{}, fmt.Errorf("refund: %w", err)
 	}
-	if err = uc.entitlements.UpdatePaymentStatus(ctx, grant.TxnID, "refunded"); err != nil {
-		return RefundResult{}, fmt.Errorf("refund: %w", err)
-	}
-	if err = uc.entitlements.RevokeGrant(ctx, grant.TxnID, "refund"); err != nil {
-		return RefundResult{}, fmt.Errorf("refund: %w", err)
-	}
-	balance, err := uc.users.CreditBalance(ctx, actorID, payment.Amount)
-	if err != nil {
-		return RefundResult{}, fmt.Errorf("refund: credit: %w", err)
-	}
-	payment.Status = "refunded"
 	return RefundResult{Payment: payment, Balance: balance}, nil
 }
 
@@ -155,35 +146,31 @@ func (uc *PaymentUseCase) ProcessWebhook(ctx context.Context, txnID, status, act
 			Sandbox:   true,
 			CreatedAt: now,
 		}
-		// Ignore duplicate errors for idempotency.
-		_ = uc.entitlements.CreatePayment(ctx, p)
-		_ = uc.entitlements.CreateGrant(ctx, domain.AccessGrant{
+		g := domain.AccessGrant{
 			GrantID:   uuid.NewString(),
 			ActorID:   actorID,
 			CourseID:  courseID,
 			TxnID:     txnID,
 			GrantedAt: now,
-		})
-		return nil
+		}
+		err := uc.entitlements.CreatePaymentAndGrant(ctx, p, g)
+		if err == nil ||
+			errors.Is(err, domain.ErrPaymentAlreadyRecorded) ||
+			errors.Is(err, domain.ErrAlreadyPurchased) {
+			// Idempotent: this event (or the grant it implies) was already
+			// applied by an earlier delivery of the same webhook.
+			return nil
+		}
+		return fmt.Errorf("webhook success: %w", err)
 
 	case "REFUNDED":
-		payment, err := uc.entitlements.GetPayment(ctx, txnID)
-		if err != nil {
+		if _, _, err := uc.entitlements.SettleRefund(ctx, txnID); err != nil {
 			return fmt.Errorf("webhook refund: %w", err)
-		}
-		if err := uc.entitlements.UpdatePaymentStatus(ctx, txnID, "refunded"); err != nil {
-			return fmt.Errorf("webhook refund: %w", err)
-		}
-		if err := uc.entitlements.RevokeGrant(ctx, txnID, "refund"); err != nil {
-			return fmt.Errorf("webhook revoke: %w", err)
-		}
-		if _, err := uc.users.CreditBalance(ctx, payment.ActorID, payment.Amount); err != nil {
-			return fmt.Errorf("webhook credit: %w", err)
 		}
 		return nil
 
 	default:
-		return fmt.Errorf("unknown webhook status: %s", status)
+		return fmt.Errorf("%w: %s", domain.ErrUnknownWebhookStatus, status)
 	}
 }
 

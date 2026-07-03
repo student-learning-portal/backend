@@ -55,39 +55,32 @@ func (s *stubPaymentUserRepo) CreditBalance(_ context.Context, _ string, _ float
 
 // stubEntitlementRepo implements domain.EntitlementRepository for payment tests.
 type stubEntitlementRepo struct {
-	payment        domain.Payment
-	grant          domain.AccessGrant
-	createPayErr   error
-	createGrantErr error
-	getPayErr      error
-	getGrantErr    error
-	updateErr      error
-	revokeErr      error
-	hasActiveGrant bool
-	hasActiveErr   error
-	history        []domain.PaymentHistoryEntry
-	historyErr     error
+	payment           domain.Payment
+	grant             domain.AccessGrant
+	createPayGrantErr error
+	settleErr         error
+	settleBalance     float64
+	getGrantErr       error
+	hasActiveGrant    bool
+	hasActiveErr      error
+	history           []domain.PaymentHistoryEntry
+	historyErr        error
 }
 
-func (s *stubEntitlementRepo) CreatePayment(_ context.Context, p domain.Payment) error {
+func (s *stubEntitlementRepo) CreatePaymentAndGrant(_ context.Context, p domain.Payment, g domain.AccessGrant) error {
 	s.payment = p
-	return s.createPayErr
-}
-
-func (s *stubEntitlementRepo) GetPayment(_ context.Context, _ string) (domain.Payment, error) {
-	return s.payment, s.getPayErr
-}
-
-func (s *stubEntitlementRepo) UpdatePaymentStatus(_ context.Context, _, _ string) error {
-	return s.updateErr
-}
-
-func (s *stubEntitlementRepo) CreateGrant(_ context.Context, g domain.AccessGrant) error {
 	s.grant = g
-	return s.createGrantErr
+	return s.createPayGrantErr
 }
 
-func (s *stubEntitlementRepo) RevokeGrant(_ context.Context, _, _ string) error { return s.revokeErr }
+func (s *stubEntitlementRepo) SettleRefund(_ context.Context, _ string) (domain.Payment, float64, error) {
+	if s.settleErr != nil {
+		return domain.Payment{}, 0, s.settleErr
+	}
+	p := s.payment
+	p.Status = "refunded"
+	return p, s.settleBalance, nil
+}
 
 func (s *stubEntitlementRepo) HasActiveGrant(_ context.Context, _, _ string) (bool, error) {
 	return s.hasActiveGrant, s.hasActiveErr
@@ -161,23 +154,17 @@ func TestCheckout_InsufficientFunds(t *testing.T) {
 	}
 }
 
-func TestCheckout_PaymentCreateFails(t *testing.T) {
+func TestCheckout_CreatePaymentAndGrantFails(t *testing.T) {
 	cat := &stubCatalogRepository{course: domain.Course{ID: "c1", Price: 10}}
-	ent := &stubEntitlementRepo{createPayErr: errors.New("db error")}
-	uc := newPaymentUC(ent, cat, &stubPaymentUserRepo{balance: 90})
+	usr := &stubPaymentUserRepo{balance: 90}
+	ent := &stubEntitlementRepo{createPayGrantErr: errors.New("db error")}
+	uc := newPaymentUC(ent, cat, usr)
 	_, err := uc.Checkout(context.Background(), "user-1", "c1")
 	if err == nil {
-		t.Fatal("expected error when payment creation fails")
+		t.Fatal("expected error when payment+grant creation fails")
 	}
-}
-
-func TestCheckout_GrantCreateFails(t *testing.T) {
-	cat := &stubCatalogRepository{course: domain.Course{ID: "c1", Price: 10}}
-	ent := &stubEntitlementRepo{createGrantErr: errors.New("grant error")}
-	uc := newPaymentUC(ent, cat, &stubPaymentUserRepo{balance: 90})
-	_, err := uc.Checkout(context.Background(), "user-1", "c1")
-	if err == nil {
-		t.Fatal("expected error when grant creation fails")
+	if !usr.creditCalled {
+		t.Errorf("expected the buyer to be refunded when payment+grant creation fails")
 	}
 }
 
@@ -199,7 +186,7 @@ func TestCheckout_AlreadyOwned_FastPathSkipsCharge(t *testing.T) {
 func TestCheckout_GrantRaceLost_RefundsAndReturnsAlreadyPurchased(t *testing.T) {
 	cat := &stubCatalogRepository{course: domain.Course{ID: "c1", Price: 49.99}}
 	usr := &stubPaymentUserRepo{balance: 50.01}
-	ent := &stubEntitlementRepo{createGrantErr: domain.ErrAlreadyPurchased}
+	ent := &stubEntitlementRepo{createPayGrantErr: domain.ErrAlreadyPurchased}
 	uc := newPaymentUC(ent, cat, usr)
 
 	_, err := uc.Checkout(context.Background(), "user-1", "c1")
@@ -216,7 +203,7 @@ func TestCheckout_GrantRaceLost_RefundsAndReturnsAlreadyPurchased(t *testing.T) 
 func TestRefund_Success(t *testing.T) {
 	payment := domain.Payment{TxnID: "txn-1", Amount: 49.99, Currency: "USD", CourseID: "c1", Status: "succeeded"}
 	grant := domain.AccessGrant{TxnID: "txn-1", ActorID: "user-1", CourseID: "c1"}
-	ent := &stubEntitlementRepo{payment: payment, grant: grant}
+	ent := &stubEntitlementRepo{payment: payment, grant: grant, settleBalance: 149.99}
 	usr := &stubPaymentUserRepo{balance: 149.99}
 	uc := newPaymentUC(ent, &stubCatalogRepository{}, usr)
 
@@ -243,7 +230,7 @@ func TestRefund_GrantNotFound(t *testing.T) {
 
 func TestRefund_PaymentNotFound(t *testing.T) {
 	grant := domain.AccessGrant{TxnID: "txn-1"}
-	ent := &stubEntitlementRepo{grant: grant, getPayErr: domain.ErrPaymentNotFound}
+	ent := &stubEntitlementRepo{grant: grant, settleErr: domain.ErrPaymentNotFound}
 	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
 	_, err := uc.Refund(context.Background(), "user-1", "c1")
 	if !errors.Is(err, domain.ErrPaymentNotFound) {
@@ -264,7 +251,7 @@ func TestProcessWebhook_SuccessStatus(t *testing.T) {
 
 func TestProcessWebhook_RefundedStatus(t *testing.T) {
 	payment := domain.Payment{TxnID: "txn-1", Amount: 50, ActorID: "user-1"}
-	ent := &stubEntitlementRepo{payment: payment}
+	ent := &stubEntitlementRepo{payment: payment, settleBalance: 100}
 	usr := &stubPaymentUserRepo{balance: 100}
 	uc := newPaymentUC(ent, &stubCatalogRepository{}, usr)
 	err := uc.ProcessWebhook(context.Background(), "txn-1", "REFUNDED", "user-1", "c1")
@@ -276,13 +263,31 @@ func TestProcessWebhook_RefundedStatus(t *testing.T) {
 func TestProcessWebhook_UnknownStatus(t *testing.T) {
 	uc := newPaymentUC(&stubEntitlementRepo{}, &stubCatalogRepository{}, &stubPaymentUserRepo{})
 	err := uc.ProcessWebhook(context.Background(), "txn-1", "PENDING", "user-1", "c1")
+	if !errors.Is(err, domain.ErrUnknownWebhookStatus) {
+		t.Errorf("err = %v, want ErrUnknownWebhookStatus", err)
+	}
+}
+
+func TestProcessWebhook_SuccessStatus_DuplicateDeliveryIsIdempotent(t *testing.T) {
+	ent := &stubEntitlementRepo{createPayGrantErr: domain.ErrPaymentAlreadyRecorded}
+	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
+	err := uc.ProcessWebhook(context.Background(), "txn-1", "SUCCESS", "user-1", "c1")
+	if err != nil {
+		t.Fatalf("expected duplicate webhook delivery to be a no-op, got %v", err)
+	}
+}
+
+func TestProcessWebhook_SuccessStatus_DBFailurePropagates(t *testing.T) {
+	ent := &stubEntitlementRepo{createPayGrantErr: errors.New("db error")}
+	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
+	err := uc.ProcessWebhook(context.Background(), "txn-1", "SUCCESS", "user-1", "c1")
 	if err == nil {
-		t.Fatal("expected error for unknown webhook status")
+		t.Fatal("expected a real DB failure to propagate instead of being swallowed")
 	}
 }
 
 func TestProcessWebhook_RefundedPaymentNotFound(t *testing.T) {
-	ent := &stubEntitlementRepo{getPayErr: domain.ErrPaymentNotFound}
+	ent := &stubEntitlementRepo{settleErr: domain.ErrPaymentNotFound}
 	uc := newPaymentUC(ent, &stubCatalogRepository{}, &stubPaymentUserRepo{})
 	err := uc.ProcessWebhook(context.Background(), "txn-1", "REFUNDED", "user-1", "c1")
 	if err == nil {
