@@ -61,6 +61,9 @@ func Run() {
 
 	userCoursesUseCase := usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)
 
+	resultsRepo := database.NewPostgresResultsRepository(database.DB)
+	resultsUseCase := usecase.NewResultsUseCase(resultsRepo)
+
 	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
 	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
@@ -77,6 +80,7 @@ func Run() {
 		UserCourses: delivery.NewUserCoursesHandler(userCoursesUseCase),
 		Profile:     delivery.NewProfileHandler(authUseCase, uploadsDir),
 		Analytics:   delivery.NewAnalyticsHandler(analyticsUseCase),
+		Results:     delivery.NewResultsHandler(resultsUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir)

@@ -17,6 +17,7 @@ type Handlers struct {
 	UserCourses *UserCoursesHandler
 	Profile     *ProfileHandler
 	Analytics   *AnalyticsHandler
+	Results     *ResultsHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -47,6 +48,7 @@ func NewRouter(
 	guard := RequireEntitlement(entitlements, analytics)
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
+	mux.HandleFunc("GET /api/v1/users/me/results", auth(h.Results.MyResults))
 
 	mux.HandleFunc("PATCH /api/v1/users/me/email", auth(h.Profile.PatchEmail))
 	mux.HandleFunc("PATCH /api/v1/users/me/password", auth(h.Profile.PatchPassword))

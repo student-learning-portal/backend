@@ -177,6 +177,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 		UserCourses: delivery.NewUserCoursesHandler(usecase.NewUserCoursesUseCase(catalogRepo, entitlementRepo)),
 		Profile:     delivery.NewProfileHandler(authUC, uploadsDir),
 		Analytics:   delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
+		Results:     delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db))),
 	}
 	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, analytics, uploadsDir))
 }
