@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/usecase"
@@ -18,13 +19,18 @@ func NewAnalyticsHandler(uc *usecase.AnalyticsUseCase) *AnalyticsHandler {
 
 // dashboardStudentDTO carries the OpenAPI teacher-dashboard student contract
 // (student_id, progress_percentage, status) plus additive, backwards-compatible
-// fields the UI finds useful (full_name, days_inactive).
+// fields the UI finds useful (full_name, lessons_completed/total, days_inactive,
+// last_activity). last_activity is omitted for a learner who has never started
+// the course, which the UI uses to distinguish "not started" from "active today".
 type dashboardStudentDTO struct {
-	StudentID          string  `json:"student_id"`
-	ProgressPercentage float64 `json:"progress_percentage"`
-	Status             string  `json:"status"`
-	FullName           string  `json:"full_name,omitempty"`
-	DaysInactive       int     `json:"days_inactive"`
+	StudentID          string     `json:"student_id"`
+	ProgressPercentage float64    `json:"progress_percentage"`
+	Status             string     `json:"status"`
+	FullName           string     `json:"full_name,omitempty"`
+	LessonsCompleted   int        `json:"lessons_completed"`
+	LessonsTotal       int        `json:"lessons_total"`
+	DaysInactive       int        `json:"days_inactive"`
+	LastActivity       *time.Time `json:"last_activity,omitempty"`
 }
 
 type teacherDashboardDTO struct {
@@ -72,7 +78,10 @@ func (h *AnalyticsHandler) TeacherDashboard(w http.ResponseWriter, r *http.Reque
 			ProgressPercentage: s.ProgressPercent,
 			Status:             s.Status,
 			FullName:           s.FullName,
+			LessonsCompleted:   s.LessonsCompleted,
+			LessonsTotal:       s.LessonsTotal,
 			DaysInactive:       s.DaysInactive,
+			LastActivity:       s.LastActivity,
 		})
 	}
 

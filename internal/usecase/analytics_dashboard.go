@@ -32,11 +32,16 @@ func NewAnalyticsUseCase(
 
 // DashboardStudent is one learner's row in the teacher dashboard.
 type DashboardStudent struct {
-	StudentID       string
-	FullName        string
-	ProgressPercent float64
-	Status          string
-	DaysInactive    int
+	StudentID        string
+	FullName         string
+	ProgressPercent  float64
+	LessonsCompleted int
+	LessonsTotal     int
+	Status           string
+	DaysInactive     int
+	// LastActivity is the learner's most recent activity timestamp, or nil when
+	// they are enrolled but have never started the course.
+	LastActivity *time.Time
 }
 
 // TeacherDashboardResult is the aggregated teacher view for a single course.
@@ -70,11 +75,14 @@ func (uc *AnalyticsUseCase) TeacherDashboard(ctx context.Context, teacherID, cou
 			result.AtRiskStudents++
 		}
 		result.Students = append(result.Students, DashboardStudent{
-			StudentID:       p.StudentID,
-			FullName:        p.FullName,
-			ProgressPercent: p.ProgressPercent,
-			Status:          status,
-			DaysInactive:    daysInactive,
+			StudentID:        p.StudentID,
+			FullName:         p.FullName,
+			ProgressPercent:  p.ProgressPercent,
+			LessonsCompleted: p.LessonsCompleted,
+			LessonsTotal:     p.LessonsTotal,
+			Status:           status,
+			DaysInactive:     daysInactive,
+			LastActivity:     p.LastActivity,
 		})
 	}
 	return result, nil

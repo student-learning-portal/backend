@@ -12,11 +12,14 @@ import (
 type dashboard struct {
 	AtRiskStudents int `json:"at_risk_students"`
 	Students       []struct {
-		StudentID          string  `json:"student_id"`
-		ProgressPercentage float64 `json:"progress_percentage"`
-		Status             string  `json:"status"`
-		FullName           string  `json:"full_name"`
-		DaysInactive       int     `json:"days_inactive"`
+		StudentID          string     `json:"student_id"`
+		ProgressPercentage float64    `json:"progress_percentage"`
+		Status             string     `json:"status"`
+		FullName           string     `json:"full_name"`
+		LessonsCompleted   int        `json:"lessons_completed"`
+		LessonsTotal       int        `json:"lessons_total"`
+		DaysInactive       int        `json:"days_inactive"`
+		LastActivity       *time.Time `json:"last_activity"`
 	} `json:"students"`
 }
 
@@ -107,6 +110,52 @@ func TestAnalytics_ClassifiesAndOrdersStudents(t *testing.T) {
 	}
 	if d.Students[1].StudentID != onTrack || d.Students[1].Status != domain.RiskOnTrack {
 		t.Errorf("students[1] = %+v, want %s / ON_TRACK", d.Students[1], onTrack)
+	}
+}
+
+// TestAnalytics_ExposesLessonsAndLastActivity locks in the additive teacher
+// dashboard fields: the lesson counts flow through from the rollup, an active
+// learner carries a last_activity timestamp, and a learner who never started
+// reports last_activity == null so the UI can distinguish them.
+func TestAnalytics_ExposesLessonsAndLastActivity(t *testing.T) {
+	e := newTestEnv(t)
+	teacherID, teacherTok := e.register("teacher@example.com", "Teacher", domain.RoleTeacher)
+	courseID := e.insertCourse(teacherID, "Go", "Programming", 10, "published")
+
+	active, _ := e.register("active@example.com", "Alice Active", domain.RoleStudent)
+	ghost, _ := e.register("ghost@example.com", "Casper Ghost", domain.RoleStudent)
+	now := time.Now()
+	e.insertRollup(courseID, active, 60.0, 3, 5, &now) // lessons 3/5, last active now
+	e.insertRollup(courseID, ghost, 0.0, 0, 5, nil)    // never started, last_activity NULL
+
+	resp := e.do(http.MethodGet, "/api/v1/analytics/teacher/dashboard?course_id="+courseID, teacherTok, nil)
+	e.requireStatus(resp, http.StatusOK)
+	var d dashboard
+	e.decode(resp, &d)
+
+	if len(d.Students) != 2 {
+		t.Fatalf("students = %d, want 2", len(d.Students))
+	}
+
+	byID := map[string]int{}
+	for i, s := range d.Students {
+		byID[s.StudentID] = i
+	}
+
+	act := d.Students[byID[active]]
+	if act.LessonsCompleted != 3 || act.LessonsTotal != 5 {
+		t.Errorf("active lessons = %d/%d, want 3/5", act.LessonsCompleted, act.LessonsTotal)
+	}
+	if act.LastActivity == nil {
+		t.Error("active last_activity = nil, want a timestamp")
+	}
+
+	gh := d.Students[byID[ghost]]
+	if gh.LessonsTotal != 5 {
+		t.Errorf("ghost lessons_total = %d, want 5", gh.LessonsTotal)
+	}
+	if gh.LastActivity != nil {
+		t.Errorf("ghost last_activity = %v, want null (never started)", gh.LastActivity)
 	}
 }
 

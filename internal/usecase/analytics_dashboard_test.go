@@ -59,6 +59,14 @@ func TestTeacherDashboard_Success(t *testing.T) {
 	if len(res.Students) != 4 {
 		t.Fatalf("students = %d, want 4", len(res.Students))
 	}
+	// A learner with recorded activity carries their timestamp through; one who
+	// has never started keeps a nil LastActivity so the UI can tell them apart.
+	if got := res.Students[0]; got.LastActivity == nil || !got.LastActivity.Equal(recent) {
+		t.Errorf("s-ok last_activity = %v, want %v", got.LastActivity, recent)
+	}
+	if got := res.Students[3]; got.LastActivity != nil {
+		t.Errorf("s-none last_activity = %v, want nil (never started)", got.LastActivity)
+	}
 }
 
 func TestTeacherDashboard_ForeignCourse(t *testing.T) {
@@ -95,7 +103,7 @@ func TestTeacherDashboard_StudentStatusFields(t *testing.T) {
 	now := time.Now()
 	recent := now.Add(-1 * 24 * time.Hour)
 	rows := []domain.StudentProgress{
-		{StudentID: "s-1", FullName: "Alice", ProgressPercent: 75, LastActivity: &recent},
+		{StudentID: "s-1", FullName: "Alice", ProgressPercent: 75, LessonsCompleted: 3, LessonsTotal: 4, LastActivity: &recent},
 	}
 	uc := newDashboardUC(domain.Course{ID: "c1", TeacherID: "t-1"}, nil, rows)
 
@@ -115,6 +123,9 @@ func TestTeacherDashboard_StudentStatusFields(t *testing.T) {
 	}
 	if s.ProgressPercent != 75 {
 		t.Errorf("progress_percent = %v, want 75", s.ProgressPercent)
+	}
+	if s.LessonsCompleted != 3 || s.LessonsTotal != 4 {
+		t.Errorf("lessons = %d/%d, want 3/4", s.LessonsCompleted, s.LessonsTotal)
 	}
 	if s.Status != domain.RiskOnTrack {
 		t.Errorf("status = %q, want ON_TRACK", s.Status)

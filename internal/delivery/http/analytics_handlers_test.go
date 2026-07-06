@@ -82,10 +82,10 @@ func TestTeacherDashboard_OK(t *testing.T) {
 	stale := now.Add(-30 * 24 * time.Hour)
 
 	rows := []domain.StudentProgress{
-		{StudentID: "s-low", ProgressPercent: 10, LastActivity: &recent},  // at risk: progress
-		{StudentID: "s-ok", ProgressPercent: 80, LastActivity: &recent},   // on track
-		{StudentID: "s-stale", ProgressPercent: 95, LastActivity: &stale}, // at risk: inactivity
-		{StudentID: "s-none", ProgressPercent: 0, LastActivity: nil},      // at risk: never active
+		{StudentID: "s-low", ProgressPercent: 10, LessonsCompleted: 1, LessonsTotal: 10, LastActivity: &recent},  // at risk: progress
+		{StudentID: "s-ok", ProgressPercent: 80, LessonsCompleted: 8, LessonsTotal: 10, LastActivity: &recent},   // on track
+		{StudentID: "s-stale", ProgressPercent: 95, LessonsCompleted: 9, LessonsTotal: 10, LastActivity: &stale}, // at risk: inactivity
+		{StudentID: "s-none", ProgressPercent: 0, LessonsCompleted: 0, LessonsTotal: 10, LastActivity: nil},      // at risk: never active
 	}
 	h := newAnalyticsHandler(domain.Course{ID: "course-1", TeacherID: "teacher-1"}, nil, rows)
 
@@ -107,6 +107,17 @@ func TestTeacherDashboard_OK(t *testing.T) {
 	}
 	if resp.Students[1].Status != domain.RiskOnTrack {
 		t.Errorf("s-ok status = %q, want ON_TRACK", resp.Students[1].Status)
+	}
+	if resp.Students[1].LessonsCompleted != 8 || resp.Students[1].LessonsTotal != 10 {
+		t.Errorf("s-ok lessons = %d/%d, want 8/10", resp.Students[1].LessonsCompleted, resp.Students[1].LessonsTotal)
+	}
+	// last_activity is serialized for active learners and omitted (nil) for a
+	// learner who has never started, so the UI can render "not started".
+	if resp.Students[1].LastActivity == nil {
+		t.Error("s-ok last_activity = nil, want a timestamp")
+	}
+	if resp.Students[3].LastActivity != nil {
+		t.Errorf("s-none last_activity = %v, want nil (never started)", resp.Students[3].LastActivity)
 	}
 }
 
