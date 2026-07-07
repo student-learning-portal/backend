@@ -1,3 +1,6 @@
+// Package usecase implements the application's business logic: it
+// orchestrates internal/domain repository interfaces to serve the handlers in
+// internal/delivery/http, independent of HTTP or SQL concerns.
 package usecase
 
 import (

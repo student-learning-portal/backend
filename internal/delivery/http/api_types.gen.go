@@ -15,19 +15,61 @@ const (
 
 // Defines values for CourseStatus.
 const (
-	Archived  CourseStatus = "archived"
-	Draft     CourseStatus = "draft"
-	Published CourseStatus = "published"
+	CourseStatusArchived  CourseStatus = "archived"
+	CourseStatusDraft     CourseStatus = "draft"
+	CourseStatusPublished CourseStatus = "published"
 )
 
 // Valid indicates whether the value is a known member of the CourseStatus enum.
 func (e CourseStatus) Valid() bool {
 	switch e {
-	case Archived:
+	case CourseStatusArchived:
 		return true
-	case Draft:
+	case CourseStatusDraft:
 		return true
-	case Published:
+	case CourseStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CourseResultStatus.
+const (
+	CourseResultStatusATRISK  CourseResultStatus = "AT_RISK"
+	CourseResultStatusONTRACK CourseResultStatus = "ON_TRACK"
+)
+
+// Valid indicates whether the value is a known member of the CourseResultStatus enum.
+func (e CourseResultStatus) Valid() bool {
+	switch e {
+	case CourseResultStatusATRISK:
+		return true
+	case CourseResultStatusONTRACK:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LessonType.
+const (
+	LessonTypeMixed LessonType = "mixed"
+	LessonTypeQuiz  LessonType = "quiz"
+	LessonTypeText  LessonType = "text"
+	LessonTypeVideo LessonType = "video"
+)
+
+// Valid indicates whether the value is a known member of the LessonType enum.
+func (e LessonType) Valid() bool {
+	switch e {
+	case LessonTypeMixed:
+		return true
+	case LessonTypeQuiz:
+		return true
+	case LessonTypeText:
+		return true
+	case LessonTypeVideo:
 		return true
 	default:
 		return false
@@ -36,22 +78,121 @@ func (e CourseStatus) Valid() bool {
 
 // Defines values for LessonDataLessonType.
 const (
-	Mixed LessonDataLessonType = "mixed"
-	Quiz  LessonDataLessonType = "quiz"
-	Text  LessonDataLessonType = "text"
-	Video LessonDataLessonType = "video"
+	LessonDataLessonTypeMixed LessonDataLessonType = "mixed"
+	LessonDataLessonTypeQuiz  LessonDataLessonType = "quiz"
+	LessonDataLessonTypeText  LessonDataLessonType = "text"
+	LessonDataLessonTypeVideo LessonDataLessonType = "video"
 )
 
 // Valid indicates whether the value is a known member of the LessonDataLessonType enum.
 func (e LessonDataLessonType) Valid() bool {
 	switch e {
-	case Mixed:
+	case LessonDataLessonTypeMixed:
 		return true
-	case Quiz:
+	case LessonDataLessonTypeQuiz:
 		return true
-	case Text:
+	case LessonDataLessonTypeText:
 		return true
-	case Video:
+	case LessonDataLessonTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LessonDataMediaType.
+const (
+	LessonDataMediaTypeAudio LessonDataMediaType = "audio"
+	LessonDataMediaTypeVideo LessonDataMediaType = "video"
+)
+
+// Valid indicates whether the value is a known member of the LessonDataMediaType enum.
+func (e LessonDataMediaType) Valid() bool {
+	switch e {
+	case LessonDataMediaTypeAudio:
+		return true
+	case LessonDataMediaTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LessonInputLessonType.
+const (
+	LessonInputLessonTypeMixed LessonInputLessonType = "mixed"
+	LessonInputLessonTypeQuiz  LessonInputLessonType = "quiz"
+	LessonInputLessonTypeText  LessonInputLessonType = "text"
+	LessonInputLessonTypeVideo LessonInputLessonType = "video"
+)
+
+// Valid indicates whether the value is a known member of the LessonInputLessonType enum.
+func (e LessonInputLessonType) Valid() bool {
+	switch e {
+	case LessonInputLessonTypeMixed:
+		return true
+	case LessonInputLessonTypeQuiz:
+		return true
+	case LessonInputLessonTypeText:
+		return true
+	case LessonInputLessonTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeacherLessonLessonType.
+const (
+	TeacherLessonLessonTypeMixed TeacherLessonLessonType = "mixed"
+	TeacherLessonLessonTypeQuiz  TeacherLessonLessonType = "quiz"
+	TeacherLessonLessonTypeText  TeacherLessonLessonType = "text"
+	TeacherLessonLessonTypeVideo TeacherLessonLessonType = "video"
+)
+
+// Valid indicates whether the value is a known member of the TeacherLessonLessonType enum.
+func (e TeacherLessonLessonType) Valid() bool {
+	switch e {
+	case TeacherLessonLessonTypeMixed:
+		return true
+	case TeacherLessonLessonTypeQuiz:
+		return true
+	case TeacherLessonLessonTypeText:
+		return true
+	case TeacherLessonLessonTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeacherMediaMediaType.
+const (
+	TeacherMediaMediaTypeAudio TeacherMediaMediaType = "audio"
+	TeacherMediaMediaTypeVideo TeacherMediaMediaType = "video"
+)
+
+// Valid indicates whether the value is a known member of the TeacherMediaMediaType enum.
+func (e TeacherMediaMediaType) Valid() bool {
+	switch e {
+	case TeacherMediaMediaTypeAudio:
+		return true
+	case TeacherMediaMediaTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TeacherProfileRole.
+const (
+	TeacherProfileRoleTeacher TeacherProfileRole = "teacher"
+)
+
+// Valid indicates whether the value is a known member of the TeacherProfileRole enum.
+func (e TeacherProfileRole) Valid() bool {
+	switch e {
+	case TeacherProfileRoleTeacher:
 		return true
 	default:
 		return false
@@ -70,6 +211,24 @@ func (e UserRole) Valid() bool {
 	case UserRoleStudent:
 		return true
 	case UserRoleTeacher:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus.
+const (
+	GetAnalyticsStudentMe200JSONResponseBodyCoursesStatusATRISK  GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus = "AT_RISK"
+	GetAnalyticsStudentMe200JSONResponseBodyCoursesStatusONTRACK GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus = "ON_TRACK"
+)
+
+// Valid indicates whether the value is a known member of the GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus enum.
+func (e GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus) Valid() bool {
+	switch e {
+	case GetAnalyticsStudentMe200JSONResponseBodyCoursesStatusATRISK:
+		return true
+	case GetAnalyticsStudentMe200JSONResponseBodyCoursesStatusONTRACK:
 		return true
 	default:
 		return false
@@ -96,16 +255,16 @@ func (e GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus) Valid() b
 
 // Defines values for PostAuthRegisterJSONBodyRole.
 const (
-	PostAuthRegisterJSONBodyRoleStudent PostAuthRegisterJSONBodyRole = "student"
-	PostAuthRegisterJSONBodyRoleTeacher PostAuthRegisterJSONBodyRole = "teacher"
+	Student PostAuthRegisterJSONBodyRole = "student"
+	Teacher PostAuthRegisterJSONBodyRole = "teacher"
 )
 
 // Valid indicates whether the value is a known member of the PostAuthRegisterJSONBodyRole enum.
 func (e PostAuthRegisterJSONBodyRole) Valid() bool {
 	switch e {
-	case PostAuthRegisterJSONBodyRoleStudent:
+	case Student:
 		return true
-	case PostAuthRegisterJSONBodyRoleTeacher:
+	case Teacher:
 		return true
 	default:
 		return false
@@ -172,6 +331,45 @@ func (e PostPurchaseWebhookJSONBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for PatchTeacherCoursesCourseIdJSONBodyStatus.
+const (
+	PatchTeacherCoursesCourseIdJSONBodyStatusArchived  PatchTeacherCoursesCourseIdJSONBodyStatus = "archived"
+	PatchTeacherCoursesCourseIdJSONBodyStatusDraft     PatchTeacherCoursesCourseIdJSONBodyStatus = "draft"
+	PatchTeacherCoursesCourseIdJSONBodyStatusPublished PatchTeacherCoursesCourseIdJSONBodyStatus = "published"
+)
+
+// Valid indicates whether the value is a known member of the PatchTeacherCoursesCourseIdJSONBodyStatus enum.
+func (e PatchTeacherCoursesCourseIdJSONBodyStatus) Valid() bool {
+	switch e {
+	case PatchTeacherCoursesCourseIdJSONBodyStatusArchived:
+		return true
+	case PatchTeacherCoursesCourseIdJSONBodyStatusDraft:
+		return true
+	case PatchTeacherCoursesCourseIdJSONBodyStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType.
+const (
+	Audio PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType = "audio"
+	Video PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType = "video"
+)
+
+// Valid indicates whether the value is a known member of the PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType enum.
+func (e PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType) Valid() bool {
+	switch e {
+	case Audio:
+		return true
+	case Video:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthResponse defines model for AuthResponse.
 type AuthResponse struct {
 	Token *string `json:"token,omitempty"`
@@ -197,6 +395,50 @@ type Course struct {
 // CourseStatus defines model for Course.Status.
 type CourseStatus string
 
+// CourseInput defines model for CourseInput.
+type CourseInput struct {
+	// Currency Defaults to "USD" when omitted.
+	Currency    *string  `json:"currency,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Price       *float32 `json:"price,omitempty"`
+
+	// Subject Defaults to "general" when omitted.
+	Subject *string `json:"subject,omitempty"`
+	Title   string  `json:"title"`
+}
+
+// CourseResult defines model for CourseResult.
+type CourseResult struct {
+	CourseId         *string `json:"course_id,omitempty"`
+	DaysInactive     *int    `json:"days_inactive,omitempty"`
+	LessonsCompleted *int    `json:"lessons_completed,omitempty"`
+	LessonsTotal     *int    `json:"lessons_total,omitempty"`
+
+	// ProgressPercent lessons_completed / lessons_total as a 0–100 value.
+	ProgressPercent *float32            `json:"progress_percent,omitempty"`
+	Status          *CourseResultStatus `json:"status,omitempty"`
+	Title           *string             `json:"title,omitempty"`
+}
+
+// CourseResultStatus defines model for CourseResult.Status.
+type CourseResultStatus string
+
+// Lesson defines model for Lesson.
+type Lesson struct {
+	CourseId  *openapi_types.UUID `json:"course_id,omitempty"`
+	CreatedAt *time.Time          `json:"created_at,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+
+	// Position 1-based display order within the course
+	Position  *int        `json:"position,omitempty"`
+	Title     *string     `json:"title,omitempty"`
+	Type      *LessonType `json:"type,omitempty"`
+	UpdatedAt *time.Time  `json:"updated_at,omitempty"`
+}
+
+// LessonType defines model for Lesson.Type.
+type LessonType string
+
 // LessonData defines model for LessonData.
 type LessonData struct {
 	// ContentUrl Primary playable media URL for the lesson ("" when the lesson has no media).
@@ -212,6 +454,9 @@ type LessonData struct {
 	LessonType          *LessonDataLessonType `json:"lesson_type,omitempty"`
 	Materials           *[]Material           `json:"materials,omitempty"`
 
+	// MediaType Type of the primary media asset. Omitted when the lesson has no media.
+	MediaType *LessonDataMediaType `json:"media_type,omitempty"`
+
 	// PercentComplete The learner's saved completion percentage (0–100).
 	PercentComplete *float32 `json:"percent_complete,omitempty"`
 	Position        *int     `json:"position,omitempty"`
@@ -221,8 +466,22 @@ type LessonData struct {
 // LessonDataLessonType defines model for LessonData.LessonType.
 type LessonDataLessonType string
 
+// LessonDataMediaType Type of the primary media asset. Omitted when the lesson has no media.
+type LessonDataMediaType string
+
+// LessonInput defines model for LessonInput.
+type LessonInput struct {
+	LessonType LessonInputLessonType `json:"lesson_type"`
+	Title      string                `json:"title"`
+}
+
+// LessonInputLessonType defines model for LessonInput.LessonType.
+type LessonInputLessonType string
+
 // Material defines model for Material.
 type Material struct {
+	// Id Present so the owning teacher's editor can reference this material (e.g. to delete it).
+	Id    *string `json:"id,omitempty"`
 	Title *string `json:"title,omitempty"`
 	Type  *string `json:"type,omitempty"`
 	Url   *string `json:"url,omitempty"`
@@ -237,8 +496,66 @@ type Progress struct {
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
 }
 
+// StudentResults defines model for StudentResults.
+type StudentResults struct {
+	Courses *[]CourseResult `json:"courses,omitempty"`
+
+	// CoursesCompleted Number of enrolled courses that are 100% complete.
+	CoursesCompleted *int `json:"courses_completed,omitempty"`
+	CoursesEnrolled  *int `json:"courses_enrolled,omitempty"`
+
+	// OverallProgressPercent Completed lessons over total lessons across all enrolled courses (0–100).
+	OverallProgressPercent *float32 `json:"overall_progress_percent,omitempty"`
+}
+
+// TeacherLesson defines model for TeacherLesson.
+type TeacherLesson struct {
+	CourseId   *string                  `json:"course_id,omitempty"`
+	LessonId   *string                  `json:"lesson_id,omitempty"`
+	LessonType *TeacherLessonLessonType `json:"lesson_type,omitempty"`
+	Position   *int                     `json:"position,omitempty"`
+	Title      *string                  `json:"title,omitempty"`
+}
+
+// TeacherLessonLessonType defines model for TeacherLesson.LessonType.
+type TeacherLessonLessonType string
+
+// TeacherMaterial defines model for TeacherMaterial.
+type TeacherMaterial struct {
+	Id    *string `json:"id,omitempty"`
+	Title *string `json:"title,omitempty"`
+	Type  *string `json:"type,omitempty"`
+	Url   *string `json:"url,omitempty"`
+}
+
+// TeacherMedia defines model for TeacherMedia.
+type TeacherMedia struct {
+	DurationSeconds *int                   `json:"duration_seconds,omitempty"`
+	Id              *string                `json:"id,omitempty"`
+	MediaType       *TeacherMediaMediaType `json:"media_type,omitempty"`
+	Url             *string                `json:"url,omitempty"`
+}
+
+// TeacherMediaMediaType defines model for TeacherMedia.MediaType.
+type TeacherMediaMediaType string
+
+// TeacherProfile defines model for TeacherProfile.
+type TeacherProfile struct {
+	FullName *string             `json:"full_name,omitempty"`
+	Id       *openapi_types.UUID `json:"id,omitempty"`
+	Role     *TeacherProfileRole `json:"role,omitempty"`
+}
+
+// TeacherProfileRole defines model for TeacherProfile.Role.
+type TeacherProfileRole string
+
 // User defines model for User.
 type User struct {
+	// AvatarUrl Server-relative path to the profile picture, e.g. /uploads/avatars/{id}.jpg. Omitted when no avatar has been set.
+	AvatarUrl *string `json:"avatar_url,omitempty"`
+
+	// Balance Virtual wallet balance (sandbox only)
+	Balance  *float32             `json:"balance,omitempty"`
 	Email    *openapi_types.Email `json:"email,omitempty"`
 	FullName *string              `json:"full_name,omitempty"`
 	Id       *openapi_types.UUID  `json:"id,omitempty"`
@@ -250,6 +567,9 @@ type UserRole string
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
+
+// GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus defines parameters for GetAnalyticsStudentMe.
+type GetAnalyticsStudentMe200JSONResponseBodyCoursesStatus string
 
 // GetAnalyticsTeacherDashboardParams defines parameters for GetAnalyticsTeacherDashboard.
 type GetAnalyticsTeacherDashboardParams struct {
@@ -324,14 +644,77 @@ type PostPurchaseRefundJSONBody struct {
 
 // PostPurchaseWebhookJSONBody defines parameters for PostPurchaseWebhook.
 type PostPurchaseWebhookJSONBody struct {
-	CourseId      *string                            `json:"course_id,omitempty"`
-	Status        *PostPurchaseWebhookJSONBodyStatus `json:"status,omitempty"`
-	TransactionId *string                            `json:"transaction_id,omitempty"`
-	UserId        *string                            `json:"user_id,omitempty"`
+	CourseId      string                            `json:"course_id"`
+	Status        PostPurchaseWebhookJSONBodyStatus `json:"status"`
+	TransactionId string                            `json:"transaction_id"`
+	UserId        string                            `json:"user_id"`
 }
 
 // PostPurchaseWebhookJSONBodyStatus defines parameters for PostPurchaseWebhook.
 type PostPurchaseWebhookJSONBodyStatus string
+
+// PatchTeacherCoursesCourseIdJSONBody defines parameters for PatchTeacherCoursesCourseId.
+type PatchTeacherCoursesCourseIdJSONBody struct {
+	// Currency Defaults to "USD" when omitted.
+	Currency    *string                                   `json:"currency,omitempty"`
+	Description *string                                   `json:"description,omitempty"`
+	Price       *float32                                  `json:"price,omitempty"`
+	Status      PatchTeacherCoursesCourseIdJSONBodyStatus `json:"status"`
+
+	// Subject Defaults to "general" when omitted.
+	Subject *string `json:"subject,omitempty"`
+	Title   string  `json:"title"`
+}
+
+// PatchTeacherCoursesCourseIdJSONBodyStatus defines parameters for PatchTeacherCoursesCourseId.
+type PatchTeacherCoursesCourseIdJSONBodyStatus string
+
+// PutTeacherCoursesCourseIdLessonsOrderJSONBody defines parameters for PutTeacherCoursesCourseIdLessonsOrder.
+type PutTeacherCoursesCourseIdLessonsOrderJSONBody struct {
+	// LessonIds Every lesson id in the course, in the desired order.
+	LessonIds []string `json:"lesson_ids"`
+}
+
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONBody defines parameters for PostTeacherCoursesCourseIdLessonsLessonIdMaterials.
+type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONBody struct {
+	Title string `json:"title"`
+
+	// Type Free-form attachment kind, e.g. "pdf", "zip", "link".
+	Type *string `json:"type,omitempty"`
+	Url  string  `json:"url"`
+}
+
+// PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody defines parameters for PutTeacherCoursesCourseIdLessonsLessonIdMedia.
+type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody struct {
+	DurationSeconds *int                                                           `json:"duration_seconds,omitempty"`
+	MediaType       PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType `json:"media_type"`
+	Url             string                                                         `json:"url"`
+}
+
+// PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType defines parameters for PutTeacherCoursesCourseIdLessonsLessonIdMedia.
+type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType string
+
+// PostUsersMeAvatarMultipartBody defines parameters for PostUsersMeAvatar.
+type PostUsersMeAvatarMultipartBody struct {
+	Avatar openapi_types.File `json:"avatar"`
+}
+
+// PatchUsersMeEmailJSONBody defines parameters for PatchUsersMeEmail.
+type PatchUsersMeEmailJSONBody struct {
+	CurrentPassword string              `json:"current_password"`
+	NewEmail        openapi_types.Email `json:"new_email"`
+}
+
+// PatchUsersMeNameJSONBody defines parameters for PatchUsersMeName.
+type PatchUsersMeNameJSONBody struct {
+	FullName string `json:"full_name"`
+}
+
+// PatchUsersMePasswordJSONBody defines parameters for PatchUsersMePassword.
+type PatchUsersMePasswordJSONBody struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
@@ -350,3 +733,36 @@ type PostPurchaseRefundJSONRequestBody PostPurchaseRefundJSONBody
 
 // PostPurchaseWebhookJSONRequestBody defines body for PostPurchaseWebhook for application/json ContentType.
 type PostPurchaseWebhookJSONRequestBody PostPurchaseWebhookJSONBody
+
+// PostTeacherCoursesJSONRequestBody defines body for PostTeacherCourses for application/json ContentType.
+type PostTeacherCoursesJSONRequestBody = CourseInput
+
+// PatchTeacherCoursesCourseIdJSONRequestBody defines body for PatchTeacherCoursesCourseId for application/json ContentType.
+type PatchTeacherCoursesCourseIdJSONRequestBody PatchTeacherCoursesCourseIdJSONBody
+
+// PostTeacherCoursesCourseIdLessonsJSONRequestBody defines body for PostTeacherCoursesCourseIdLessons for application/json ContentType.
+type PostTeacherCoursesCourseIdLessonsJSONRequestBody = LessonInput
+
+// PutTeacherCoursesCourseIdLessonsOrderJSONRequestBody defines body for PutTeacherCoursesCourseIdLessonsOrder for application/json ContentType.
+type PutTeacherCoursesCourseIdLessonsOrderJSONRequestBody PutTeacherCoursesCourseIdLessonsOrderJSONBody
+
+// PatchTeacherCoursesCourseIdLessonsLessonIdJSONRequestBody defines body for PatchTeacherCoursesCourseIdLessonsLessonId for application/json ContentType.
+type PatchTeacherCoursesCourseIdLessonsLessonIdJSONRequestBody = LessonInput
+
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONRequestBody defines body for PostTeacherCoursesCourseIdLessonsLessonIdMaterials for application/json ContentType.
+type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONRequestBody PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONBody
+
+// PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody defines body for PutTeacherCoursesCourseIdLessonsLessonIdMedia for application/json ContentType.
+type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody
+
+// PostUsersMeAvatarMultipartRequestBody defines body for PostUsersMeAvatar for multipart/form-data ContentType.
+type PostUsersMeAvatarMultipartRequestBody PostUsersMeAvatarMultipartBody
+
+// PatchUsersMeEmailJSONRequestBody defines body for PatchUsersMeEmail for application/json ContentType.
+type PatchUsersMeEmailJSONRequestBody PatchUsersMeEmailJSONBody
+
+// PatchUsersMeNameJSONRequestBody defines body for PatchUsersMeName for application/json ContentType.
+type PatchUsersMeNameJSONRequestBody PatchUsersMeNameJSONBody
+
+// PatchUsersMePasswordJSONRequestBody defines body for PatchUsersMePassword for application/json ContentType.
+type PatchUsersMePasswordJSONRequestBody PatchUsersMePasswordJSONBody

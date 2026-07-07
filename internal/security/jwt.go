@@ -1,3 +1,6 @@
+// Package security implements domain.TokenService: issuing and verifying the
+// HS256 JWTs that back session auth (internal/delivery/http's RequireAuth
+// middleware), plus password hashing.
 package security
 
 import (

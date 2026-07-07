@@ -3,17 +3,24 @@
 This is the backend service for the Student Learning Portal, built with Go, OpenAPI, Swagger.
 
 ## Prerequisites
-- [Go](https://golang.org/doc/install) (1.25+ recommended)
+- [Go](https://golang.org/doc/install) (1.26+ recommended — matches the `go 1.26.4` directive in `go.mod`)
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose (for running the PostgreSQL database)
 - [golang-migrate](https://github.com/golang-migrate/migrate) (for running database migrations; no local install needed — used via Docker)
 - [sqlc](https://sqlc.dev/) (optional, for code generation from SQL)
+- [golangci-lint](https://golangci-lint.run/) v2.x built against a Go toolchain ≥ this module's `go` directive (an older build refuses to load the config — see Linting below)
 
 ## Project Structure
-- `cmd/portal/main.go`: The main entry point to start the server.
+- `cmd/portal/main.go`: The main entry point to start the HTTP server.
+- `cmd/analytics-loader/main.go`: Standalone binary that (re)computes the `analytics_student_course` rollup; see `analytics-ml-layer.md`.
 - `configs/config.env`: Environment variables and secrets.
-- `internal/`: Application code.
+- `internal/`: Application code (`domain`, `usecase`, `database`, `delivery/http`, `security`, `logging`, `eventlog`).
+- `api/openapi.yaml`: The OpenAPI/Swagger contract. `internal/delivery/http/router.go` hand-registers every route; the `api_types.gen.go` / `api_server.gen.go` files generated from this spec (see step 5 below) provide request/response types but their `ServerInterface` is **not** wired into the router — the hand-written mux is the actual source of truth for what's reachable.
 - `migrations/`: Database schema migrations.
 - `tools/sqlc/`: SQL queries for `sqlc` to generate database access code.
+- `e2e/`: HTTP-level integration tests against a real Postgres (see "End-to-end / integration tests" below).
+- `scripts/`: `seed.sql` / `seed_analytics.sql` fixtures and `integration-test.sh`, the one-command e2e runner.
+- `deployments/`, `Dockerfile`, `docker-compose.yml`: container build/deploy config. `deployments/Dockerfile` and the root `docker-compose.yml` are currently empty placeholder files — the real dev stack (with its own `Dockerfile` build) lives in `../infra/docker-compose.yml`.
+- `.golangci.yml`, `Makefile`: lint config and the `install-hooks` / `test` / `test-integration` targets.
 
 ## Getting Started
 
@@ -151,6 +158,48 @@ curl -X GET "http://localhost:8080/api/v1/player/courses/<course_id>/lessons/<le
   -H "Authorization: Bearer <jwt>"
 ```
 
+Note: the entitlement check above has one carve-out — a course's own teacher
+always passes it, so they can preview their own lessons without a purchase.
+
+### Full route reference
+
+The examples above cover the core auth/player flow; the rest of the surface
+(catalog, profile, purchasing, analytics, and teacher content authoring) is
+documented in full in `api/openapi.yaml`. Quick index of every route
+registered in `internal/delivery/http/router.go`:
+
+| Method & Path | Auth | Notes |
+|---|---|---|
+| `GET /hello` | — | Liveness check |
+| `GET /api/v1/health/db` | — | DB connectivity check |
+| `GET /api/v1/catalog/courses` | — | Search/filter/sort/paginate published courses |
+| `GET /api/v1/catalog/courses/{course_id}/lessons` | — | Lessons for a published course |
+| `POST /api/v1/auth/register` | — | Create account, returns JWT |
+| `POST /api/v1/auth/login` | — | Returns JWT |
+| `GET /api/v1/auth/me` | JWT | Caller's profile |
+| `GET /api/v1/teachers/{teacher_id}` | — | Public teacher profile (404s for non-teachers, avoids role enumeration) |
+| `GET /api/v1/users/me/courses` | JWT | Caller's enrolled courses |
+| `GET /api/v1/users/me/results` | JWT | Caller's per-course results |
+| `PATCH /api/v1/users/me/{email,password,name}` | JWT | Profile edits |
+| `POST /api/v1/users/me/avatar` | JWT | Upload avatar (served back from `/uploads/`) |
+| `POST /api/v1/purchase/checkout` | JWT | Mock sandbox purchase |
+| `POST /api/v1/purchase/refund` | JWT | Refund + revoke access |
+| `POST /api/v1/purchase/webhook` | — | Gateway callback, idempotent on `transaction_id` |
+| `GET /api/v1/purchase/history` | JWT | Caller's payment history |
+| `GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}` | JWT + entitlement | See item 6 above |
+| `POST /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress` | JWT + entitlement | See item 7 above |
+| `GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress` | JWT + entitlement | See item 8 above |
+| `GET /api/v1/analytics/teacher/dashboard?course_id=` | JWT (teacher, owner) | AT_RISK/ON_TRACK per student |
+| `GET /api/v1/analytics/student/me` | JWT | Caller's own progress across courses |
+| `POST /api/v1/teacher/courses` | JWT (teacher) | Create draft course |
+| `PATCH /api/v1/teacher/courses/{course_id}` | JWT (teacher, owner) | Update course / change status |
+| `DELETE /api/v1/teacher/courses/{course_id}` | JWT (teacher, owner) | Draft-only (see `ErrCourseNotDraft`) |
+| `POST /api/v1/teacher/courses/{course_id}/lessons` | JWT (teacher, owner) | Append lesson |
+| `PUT /api/v1/teacher/courses/{course_id}/lessons/order` | JWT (teacher, owner) | Reorder lessons |
+| `PATCH.../DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}` | JWT (teacher, owner) | Edit / delete lesson |
+| `PUT/DELETE .../lessons/{lesson_id}/media` | JWT (teacher, owner) | Set/remove the lesson's media asset |
+| `POST/DELETE .../lessons/{lesson_id}/materials[/{material_id}]` | JWT (teacher, owner) | Add/remove attachments |
+
 ## End-to-end / integration tests
 
 The `e2e/` package drives the **real** router — middleware, handlers, use cases,
@@ -265,3 +314,30 @@ go test ./... -v
 ```bash
 golangci-lint run ./...
 ```
+Requires a golangci-lint build whose Go toolchain version is ≥ this module's
+`go` directive (currently 1.26.4) — an older build refuses to load the config
+with `can't load config: the Go language version ... is lower than the
+targeted Go version`.
+
+## Test Coverage & Lint Baseline
+
+Snapshot from 2026-07-07 (`go test -short -cover ./...`, `golangci-lint v2.12.2`):
+
+| Package | Coverage |
+|---|---|
+| `internal/security` | 92.3% |
+| `internal/eventlog` | 83.3% |
+| `internal/usecase` | 70.9% |
+| `internal/delivery/http` | 40.5% |
+| `internal/domain` | 29.6% |
+| `internal/database`, `internal/logging`, `cmd/*` | 0% (no unit tests; `database` is exercised indirectly via `e2e/`) |
+
+`golangci-lint run ./...` reports **24 issues**: 8 `lll` (line length), 5
+`govet` (`err` shadowing in `internal/database/entitlement.go` /
+`internal/database/lesson.go`), 3 `gofumpt` (formatting in test files), 3
+`goconst` (repeated `"USD"` / `"video"` literals), 2 `dupl`
+(`CourseStudentProgress` / `StudentCourseProgress` in
+`internal/database/analytics.go` are near-identical queries), 1 `gocognit`
+(`RequireEntitlement` middleware), 1 `contextcheck`, 1 `unparam`. None are
+correctness bugs; re-run the command above for the current count before
+relying on this table, since it will drift as the code changes.

@@ -16,6 +16,8 @@ var ErrMaterialNotFound = errors.New("material not found")
 // doesn't exactly match the course's current lessons.
 var ErrLessonOrderMismatch = errors.New("lesson order does not match the course's lessons")
 
+// Lesson is one unit of a course's content, ordered within the course by
+// Position (see LessonRepository.ReorderLessons).
 type Lesson struct {
 	ID        string    `json:"id"`
 	CourseID  string    `json:"course_id"`
@@ -44,6 +46,8 @@ type Material struct {
 	Type     string `json:"type"`
 }
 
+// LessonRepository persists lessons and their attached media/materials, and
+// backs both the teacher-authoring endpoints and the learner-facing player.
 type LessonRepository interface {
 	GetLessonsByCourseID(ctx context.Context, courseID string) ([]Lesson, error)
 	GetLesson(ctx context.Context, courseID, lessonID string) (Lesson, error)

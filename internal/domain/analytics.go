@@ -1,3 +1,6 @@
+// Package domain holds the core business types, repository interfaces, and
+// domain errors shared by internal/usecase and internal/database. It has no
+// dependency on HTTP or SQL — those layers depend on it, not the reverse.
 package domain
 
 import (
