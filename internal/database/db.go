@@ -1,3 +1,6 @@
+// Package database implements internal/domain's repository interfaces
+// against Postgres (via database/sql + pgx). Each file groups the queries for
+// one domain area (catalog, entitlement, lesson, analytics, ...).
 package database
 
 import (

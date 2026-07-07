@@ -1,13 +1,62 @@
 openapi: 3.0.3
 info:
   title: Student Learning Portal API
-  description: MVP endpoints for course catalog, auth, purchasing, access control, progress tracking, and analytics.
-  version: 1.0.0
+  description: >
+    Endpoints for course catalog, auth, teacher content authoring,
+    purchasing, access control, progress tracking, and analytics. Every
+    handler is hand-registered in internal/delivery/http/router.go; the
+    oapi-codegen-generated server interface in api_server.gen.go is not
+    wired up and does not enforce this contract at runtime.
+  version: 1.1.0
 servers:
   - url: http://localhost:8080/api/v1
-    description: Local MVP development server
+    description: Local development server
 
 paths:
+  # ---------------------------------------------------------
+  # HEALTH (unversioned — not under /api/v1)
+  # ---------------------------------------------------------
+  /hello:
+    get:
+      summary: Liveness check
+      description: Confirms the routing and HTTP delivery layer are up. No auth, no dependencies checked.
+      tags:
+        - Health
+      servers:
+        - url: http://localhost:8080
+          description: Root, not under /api/v1
+      responses:
+        '200':
+          description: Service is routing requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Hello, World!"
+
+  /health/db:
+    get:
+      summary: Database connectivity check
+      description: Verifies the server can reach and query Postgres. No auth.
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Database reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: connected
+        '500':
+          description: Database unreachable
+
   # ---------------------------------------------------------
   # AUTHENTICATION
   # ---------------------------------------------------------
@@ -531,12 +580,26 @@ paths:
                   balance:
                     type: number
                     description: Buyer's wallet balance after the refund
+        '401':
+          description: Missing or invalid bearer token
         '404':
-          description: No active purchase found for this course
+          description: >
+            No refundable purchase found for course_id. Covers two distinct
+            cases that share this status: no active access grant for the
+            course, or (rarer) the grant exists but its originating payment
+            row is missing.
 
   /purchase/webhook:
     post:
       summary: Idempotent webhook entrypoint (Mocks payment success or refund/revocation)
+      description: >
+        Simulates a payment gateway's server-to-server callback. Idempotency:
+        `transaction_id` is the payment table's primary key, so redelivering
+        the same SUCCESS event is a no-op that returns 200 without granting
+        access twice (ErrPaymentAlreadyRecorded, handled internally rather
+        than surfaced as an error). No auth — a real gateway calls this
+        anonymously and is trusted by shared secret/IP allowlist instead (not
+        implemented in this sandbox).
       tags:
         - Purchase
       requestBody:
@@ -545,6 +608,11 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - transaction_id
+                - status
+                - user_id
+                - course_id
               properties:
                 transaction_id:
                   type: string
@@ -557,7 +625,11 @@ paths:
                   type: string
       responses:
         '200':
-          description: Webhook processed successfully
+          description: Webhook processed successfully (or was already processed — see idempotency note above)
+        '400':
+          description: Malformed body or a status value outside [SUCCESS, REFUNDED]
+        '500':
+          description: Internal error recording the payment/grant/refund
 
   # ---------------------------------------------------------
   # PLAYER (ACCESS & PROGRESS)
@@ -565,6 +637,12 @@ paths:
   /player/courses/{course_id}/lessons/{lesson_id}:
     get:
       summary: Request to play a lesson (Enforces Access/Entitlement)
+      description: >
+        Requires an active access grant for the course, with one carve-out:
+        the course's own teacher always passes this check, so they can
+        preview their own content without buying it. Every call (allow or
+        deny) is written to an access-check audit log and emits an
+        `access.check`/`access.denied` analytics event, regardless of outcome.
       tags:
         - Player
       security:
@@ -587,8 +665,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LessonData'
+        '401':
+          description: Missing or invalid bearer token
         '403':
-          description: Access denied (No active entitlement)
+          description: Access denied (no active entitlement, and caller is not the course's teacher)
 
   /player/courses/{course_id}/lessons/{lesson_id}/progress:
     post:
@@ -672,6 +752,13 @@ paths:
   /analytics/teacher/dashboard:
     get:
       summary: Aggregated teacher view to detect struggling students
+      description: >
+        Caller must be a teacher and must own course_id. A student is
+        AT_RISK when progress_percentage is below 40%, or there has been no
+        `player.*` activity for more than 7 days (no activity at all always
+        counts as at risk) — see domain.ClassifyRisk / DefaultRiskThresholds.
+        Backed by a periodic rollup, so results can lag a learner's very
+        latest activity by up to one loader run.
       tags:
         - Analytics
       security:
@@ -699,15 +786,41 @@ paths:
                       properties:
                         student_id:
                           type: string
+                        full_name:
+                          type: string
                         progress_percentage:
                           type: number
+                        lessons_completed:
+                          type: integer
+                        lessons_total:
+                          type: integer
                         status:
                           type: string
                           enum: [ON_TRACK, AT_RISK]
+                        days_inactive:
+                          type: integer
+                          description: Null/absent if the student has never been active.
+                        last_activity:
+                          type: string
+                          format: date-time
+                          nullable: true
+        '400':
+          description: Missing course_id
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller is not a teacher, or does not own course_id
+        '404':
+          description: course_id not found
 
   /analytics/student/me:
     get:
       summary: Personal student progress across enrolled courses
+      description: >
+        Keyed by the caller's own actor_id rather than a course_id. A course
+        the caller enrolled in but that hasn't been picked up by the rollup
+        loader yet simply doesn't appear (no error). Uses the same AT_RISK
+        rule as the teacher dashboard (see above).
       tags:
         - Analytics
       security:
@@ -744,6 +857,8 @@ paths:
                           enum: [ON_TRACK, AT_RISK]
                         days_inactive:
                           type: integer
+        '401':
+          description: Missing or invalid bearer token
 
   # ---------------------------------------------------------
   # TEACHER CONTENT AUTHORING (courses, lessons, media, materials)

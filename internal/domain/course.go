@@ -40,6 +40,8 @@ type CourseListParams struct {
 	PageSize  int
 }
 
+// CatalogRepository persists and queries courses: the public,
+// filterable/paginated catalog listing plus per-teacher authoring CRUD.
 type CatalogRepository interface {
 	GetCourses(params CourseListParams) ([]Course, int, error)
 	GetByID(ctx context.Context, id string) (Course, error)

@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ServerInterface represents all server handlers.
@@ -34,6 +35,15 @@ type ServerInterface interface {
 	// Browsable catalog of courses with simple filtering
 	// (GET /catalog/courses)
 	GetCatalogCourses(w http.ResponseWriter, r *http.Request, params GetCatalogCoursesParams)
+	// List all lessons for a course
+	// (GET /catalog/courses/{course_id}/lessons)
+	GetCatalogCoursesCourseIdLessons(w http.ResponseWriter, r *http.Request, courseId openapi_types.UUID)
+	// Database connectivity check
+	// (GET /health/db)
+	GetHealthDb(w http.ResponseWriter, r *http.Request)
+	// Liveness check
+	// (GET /hello)
+	GetHello(w http.ResponseWriter, r *http.Request)
 	// Request to play a lesson (Enforces Access/Entitlement)
 	// (GET /player/courses/{course_id}/lessons/{lesson_id})
 	GetPlayerCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
@@ -46,12 +56,69 @@ type ServerInterface interface {
 	// Initiate mock sandbox purchase for a course
 	// (POST /purchase/checkout)
 	PostPurchaseCheckout(w http.ResponseWriter, r *http.Request)
+	// List the caller's payment history (purchases and refunds), newest first
+	// (GET /purchase/history)
+	GetPurchaseHistory(w http.ResponseWriter, r *http.Request)
 	// Return a purchased course and refund the full amount to the buyer's virtual wallet
 	// (POST /purchase/refund)
 	PostPurchaseRefund(w http.ResponseWriter, r *http.Request)
 	// Idempotent webhook entrypoint (Mocks payment success or refund/revocation)
 	// (POST /purchase/webhook)
 	PostPurchaseWebhook(w http.ResponseWriter, r *http.Request)
+	// Create a new draft course owned by the caller
+	// (POST /teacher/courses)
+	PostTeacherCourses(w http.ResponseWriter, r *http.Request)
+	// Delete a draft course (published/archived courses must be archived instead)
+	// (DELETE /teacher/courses/{course_id})
+	DeleteTeacherCoursesCourseId(w http.ResponseWriter, r *http.Request, courseId string)
+	// Update an owned course's fields and status
+	// (PATCH /teacher/courses/{course_id})
+	PatchTeacherCoursesCourseId(w http.ResponseWriter, r *http.Request, courseId string)
+	// Append a new lesson to an owned course
+	// (POST /teacher/courses/{course_id}/lessons)
+	PostTeacherCoursesCourseIdLessons(w http.ResponseWriter, r *http.Request, courseId string)
+	// Reorder an owned course's lessons
+	// (PUT /teacher/courses/{course_id}/lessons/order)
+	PutTeacherCoursesCourseIdLessonsOrder(w http.ResponseWriter, r *http.Request, courseId string)
+	// Delete a lesson (and its media/materials)
+	// (DELETE /teacher/courses/{course_id}/lessons/{lesson_id})
+	DeleteTeacherCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Update an owned lesson's title/type
+	// (PATCH /teacher/courses/{course_id}/lessons/{lesson_id})
+	PatchTeacherCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Attach a downloadable material to a lesson
+	// (POST /teacher/courses/{course_id}/lessons/{lesson_id}/materials)
+	PostTeacherCoursesCourseIdLessonsLessonIdMaterials(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Remove a single material from a lesson
+	// (DELETE /teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id})
+	DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string, materialId string)
+	// Remove a lesson's media asset, if any
+	// (DELETE /teacher/courses/{course_id}/lessons/{lesson_id}/media)
+	DeleteTeacherCoursesCourseIdLessonsLessonIdMedia(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Replace a lesson's playable media asset
+	// (PUT /teacher/courses/{course_id}/lessons/{lesson_id}/media)
+	PutTeacherCoursesCourseIdLessonsLessonIdMedia(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Get a teacher's public profile
+	// (GET /teachers/{teacher_id})
+	GetTeachersTeacherId(w http.ResponseWriter, r *http.Request, teacherId openapi_types.UUID)
+	// Upload a profile picture
+	// (POST /users/me/avatar)
+	PostUsersMeAvatar(w http.ResponseWriter, r *http.Request)
+	// Get courses for the authenticated user
+	// (GET /users/me/courses)
+	GetUsersMeCourses(w http.ResponseWriter, r *http.Request)
+	// Change the authenticated user's email address
+	// (PATCH /users/me/email)
+	PatchUsersMeEmail(w http.ResponseWriter, r *http.Request)
+	// Change the authenticated user's display name
+	// (PATCH /users/me/name)
+	PatchUsersMeName(w http.ResponseWriter, r *http.Request)
+	// Change the authenticated user's password
+	// (PATCH /users/me/password)
+	PatchUsersMePassword(w http.ResponseWriter, r *http.Request)
+	// Aggregated progress across the caller's enrolled courses
+	// (GET /users/me/results)
+	GetUsersMeResults(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -294,6 +361,60 @@ func (siw *ServerInterfaceWrapper) GetCatalogCourses(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetCatalogCoursesCourseIdLessons operation middleware
+func (siw *ServerInterfaceWrapper) GetCatalogCoursesCourseIdLessons(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCatalogCoursesCourseIdLessons(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHealthDb operation middleware
+func (siw *ServerInterfaceWrapper) GetHealthDb(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealthDb(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHello operation middleware
+func (siw *ServerInterfaceWrapper) GetHello(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHello(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetPlayerCoursesCourseIdLessonsLessonId operation middleware
 func (siw *ServerInterfaceWrapper) GetPlayerCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request) {
 
@@ -437,6 +558,26 @@ func (siw *ServerInterfaceWrapper) PostPurchaseCheckout(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetPurchaseHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetPurchaseHistory(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPurchaseHistory(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostPurchaseRefund operation middleware
 func (siw *ServerInterfaceWrapper) PostPurchaseRefund(w http.ResponseWriter, r *http.Request) {
 
@@ -462,6 +603,555 @@ func (siw *ServerInterfaceWrapper) PostPurchaseWebhook(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostPurchaseWebhook(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeacherCourses operation middleware
+func (siw *ServerInterfaceWrapper) PostTeacherCourses(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeacherCourses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTeacherCoursesCourseId operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTeacherCoursesCourseId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTeacherCoursesCourseId(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchTeacherCoursesCourseId operation middleware
+func (siw *ServerInterfaceWrapper) PatchTeacherCoursesCourseId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchTeacherCoursesCourseId(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeacherCoursesCourseIdLessons operation middleware
+func (siw *ServerInterfaceWrapper) PostTeacherCoursesCourseIdLessons(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeacherCoursesCourseIdLessons(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutTeacherCoursesCourseIdLessonsOrder operation middleware
+func (siw *ServerInterfaceWrapper) PutTeacherCoursesCourseIdLessonsOrder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutTeacherCoursesCourseIdLessonsOrder(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTeacherCoursesCourseIdLessonsLessonId operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTeacherCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTeacherCoursesCourseIdLessonsLessonId(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchTeacherCoursesCourseIdLessonsLessonId operation middleware
+func (siw *ServerInterfaceWrapper) PatchTeacherCoursesCourseIdLessonsLessonId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchTeacherCoursesCourseIdLessonsLessonId(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterials operation middleware
+func (siw *ServerInterfaceWrapper) PostTeacherCoursesCourseIdLessonsLessonIdMaterials(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeacherCoursesCourseIdLessonsLessonIdMaterials(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "material_id" -------------
+	var materialId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "material_id", r.PathValue("material_id"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "material_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId(w, r, courseId, lessonId, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTeacherCoursesCourseIdLessonsLessonIdMedia operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTeacherCoursesCourseIdLessonsLessonIdMedia(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTeacherCoursesCourseIdLessonsLessonIdMedia(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutTeacherCoursesCourseIdLessonsLessonIdMedia operation middleware
+func (siw *ServerInterfaceWrapper) PutTeacherCoursesCourseIdLessonsLessonIdMedia(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutTeacherCoursesCourseIdLessonsLessonIdMedia(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTeachersTeacherId operation middleware
+func (siw *ServerInterfaceWrapper) GetTeachersTeacherId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teacher_id" -------------
+	var teacherId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teacher_id", r.PathValue("teacher_id"), &teacherId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "teacher_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTeachersTeacherId(w, r, teacherId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUsersMeAvatar operation middleware
+func (siw *ServerInterfaceWrapper) PostUsersMeAvatar(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUsersMeAvatar(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUsersMeCourses operation middleware
+func (siw *ServerInterfaceWrapper) GetUsersMeCourses(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUsersMeCourses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchUsersMeEmail operation middleware
+func (siw *ServerInterfaceWrapper) PatchUsersMeEmail(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchUsersMeEmail(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchUsersMeName operation middleware
+func (siw *ServerInterfaceWrapper) PatchUsersMeName(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchUsersMeName(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchUsersMePassword operation middleware
+func (siw *ServerInterfaceWrapper) PatchUsersMePassword(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchUsersMePassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUsersMeResults operation middleware
+func (siw *ServerInterfaceWrapper) GetUsersMeResults(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUsersMeResults(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -597,12 +1287,34 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetAuthMe)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/register", wrapper.PostAuthRegister)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses", wrapper.GetCatalogCourses)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses/{course_id}/lessons", wrapper.GetCatalogCoursesCourseIdLessons)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health/db", wrapper.GetHealthDb)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/hello", wrapper.GetHello)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}", wrapper.GetPlayerCoursesCourseIdLessonsLessonId)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.GetPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/player/courses/{course_id}/lessons/{lesson_id}/progress", wrapper.PostPlayerCoursesCourseIdLessonsLessonIdProgress)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/checkout", wrapper.PostPurchaseCheckout)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/purchase/history", wrapper.GetPurchaseHistory)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/refund", wrapper.PostPurchaseRefund)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/purchase/webhook", wrapper.PostPurchaseWebhook)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses", wrapper.PostTeacherCourses)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}", wrapper.DeleteTeacherCoursesCourseId)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/teacher/courses/{course_id}", wrapper.PatchTeacherCoursesCourseId)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons", wrapper.PostTeacherCoursesCourseIdLessons)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/order", wrapper.PutTeacherCoursesCourseIdLessonsOrder)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonId)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}", wrapper.PatchTeacherCoursesCourseIdLessonsLessonId)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/materials", wrapper.PostTeacherCoursesCourseIdLessonsLessonIdMaterials)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/media", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonIdMedia)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/media", wrapper.PutTeacherCoursesCourseIdLessonsLessonIdMedia)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teachers/{teacher_id}", wrapper.GetTeachersTeacherId)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/users/me/avatar", wrapper.PostUsersMeAvatar)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/me/courses", wrapper.GetUsersMeCourses)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/users/me/email", wrapper.PatchUsersMeEmail)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/users/me/name", wrapper.PatchUsersMeName)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/users/me/password", wrapper.PatchUsersMePassword)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/me/results", wrapper.GetUsersMeResults)
 
 	return m
 }

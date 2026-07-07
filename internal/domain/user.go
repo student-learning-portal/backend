@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// Role is an account's permission level; it gates registration input and
+// which endpoints/actions (e.g. teacher content authoring) a caller may use.
 type Role string
 
 const (
@@ -13,6 +15,8 @@ const (
 	RoleTeacher Role = "teacher"
 )
 
+// Valid reports whether r is one of the known roles; used to validate
+// registration input instead of trusting arbitrary client-supplied strings.
 func (r Role) Valid() bool {
 	return r == RoleStudent || r == RoleTeacher
 }
