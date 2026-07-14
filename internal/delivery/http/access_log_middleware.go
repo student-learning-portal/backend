@@ -44,7 +44,7 @@ func WithAccessLog(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
 
-		defer func() {
+		defer func() { //nolint:contextcheck // reads r.Context() throughout; false positive on a deferred logging closure
 			log := logging.FromContext(r.Context())
 
 			if rerr := recover(); rerr != nil {

@@ -66,7 +66,7 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 // Every decision is written to the audit-grade access_check_log and mirrored to the
 // analytics event stream as access.check (plus access.denied on refusal). Must be
 // chained after RequireAuth.
-func RequireEntitlement(
+func RequireEntitlement( //nolint:gocognit // access-control middleware: teacher-bypass + audit + deny logic reads clearer inline
 	entRepo domain.EntitlementRepository,
 	catalog domain.CatalogRepository,
 	analytics *usecase.AnalyticsRecorder,

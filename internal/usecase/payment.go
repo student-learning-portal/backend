@@ -141,7 +141,7 @@ func (uc *PaymentUseCase) ProcessWebhook(ctx context.Context, txnID, status, act
 			ActorID:   actorID,
 			CourseID:  courseID,
 			Amount:    0,
-			Currency:  "USD",
+			Currency:  currencyUSD,
 			Status:    "succeeded",
 			Sandbox:   true,
 			CreatedAt: now,

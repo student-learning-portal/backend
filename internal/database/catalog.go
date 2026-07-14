@@ -147,7 +147,10 @@ func (r *PostgresCatalogRepository) Create(ctx context.Context, c domain.Course)
 		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
 		c.TeacherID, c.Title, c.Description, c.Subject, c.Price, c.Currency,
-	).Scan(&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt)
+	).Scan(
+		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject,
+		&out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+	)
 	if err != nil {
 		return domain.Course{}, fmt.Errorf("create course: %w", err)
 	}
@@ -163,7 +166,10 @@ func (r *PostgresCatalogRepository) Update(ctx context.Context, c domain.Course)
 		 WHERE id = $7
 		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
 		c.Title, c.Description, c.Subject, c.Price, c.Currency, c.Status, c.ID,
-	).Scan(&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt)
+	).Scan(
+		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject,
+		&out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Course{}, domain.ErrCourseNotFound
 	}

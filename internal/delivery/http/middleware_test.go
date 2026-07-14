@@ -205,7 +205,7 @@ func noCourseCatalogRepo() *middlewareCatalogRepo {
 	return &middlewareCatalogRepo{err: domain.ErrCourseNotFound}
 }
 
-func entitlementRequest(courseID, lessonID string, claims domain.Claims) *http.Request {
+func entitlementRequest(courseID, lessonID string, claims domain.Claims) *http.Request { //nolint:unparam // courseID is intentionally fixed across these entitlement tests
 	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r = r.WithContext(context.WithValue(r.Context(), claimsContextKey, claims))
 	r.SetPathValue(keyCourseID, courseID)

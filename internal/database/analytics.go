@@ -111,7 +111,9 @@ func (r *PostgresAnalyticsRepository) RefreshStudentCourseRow(ctx context.Contex
 
 // CourseStudentProgress reads every enrolled learner's rolled-up standing for a
 // course, worst progress first, joining the full name for display.
-func (r *PostgresAnalyticsRepository) CourseStudentProgress(ctx context.Context, courseID string) ([]domain.StudentProgress, error) {
+func (r *PostgresAnalyticsRepository) CourseStudentProgress( //nolint:dupl // typed reader; DRY would need reflection
+	ctx context.Context, courseID string,
+) ([]domain.StudentProgress, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT a.actor_id, COALESCE(u.full_name, ''), a.progress_percent,
 		        a.lessons_completed, a.lessons_total, a.last_activity_ts
@@ -153,7 +155,9 @@ func (r *PostgresAnalyticsRepository) CourseStudentProgress(ctx context.Context,
 // StudentCourseProgress reads a learner's rolled-up standing across every
 // course they are enrolled in, joining the course title for display and
 // ordering most recently active first (never-active courses last).
-func (r *PostgresAnalyticsRepository) StudentCourseProgress(ctx context.Context, studentID string) ([]domain.CourseProgress, error) {
+func (r *PostgresAnalyticsRepository) StudentCourseProgress( //nolint:dupl // typed reader; DRY would need reflection
+	ctx context.Context, studentID string,
+) ([]domain.CourseProgress, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT a.course_id, COALESCE(c.title, ''), a.progress_percent,
 		        a.lessons_completed, a.lessons_total, a.last_activity_ts

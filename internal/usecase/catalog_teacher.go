@@ -57,7 +57,7 @@ func (uc *CatalogUseCase) CreateCourse(ctx context.Context, teacherID string, in
 	}
 	currency := in.Currency
 	if currency == "" {
-		currency = "USD"
+		currency = currencyUSD
 	}
 
 	course, err := uc.repo.Create(ctx, domain.Course{
@@ -75,7 +75,9 @@ func (uc *CatalogUseCase) CreateCourse(ctx context.Context, teacherID string, in
 }
 
 // UpdateCourse overwrites an owned course's editable fields, including status.
-func (uc *CatalogUseCase) UpdateCourse(ctx context.Context, teacherID, courseID string, in CourseInput, status string) (domain.Course, error) {
+func (uc *CatalogUseCase) UpdateCourse(
+	ctx context.Context, teacherID, courseID string, in CourseInput, status string,
+) (domain.Course, error) {
 	if err := validateCourseInput(in); err != nil {
 		return domain.Course{}, err
 	}
@@ -94,7 +96,7 @@ func (uc *CatalogUseCase) UpdateCourse(ctx context.Context, teacherID, courseID 
 	}
 	currency := in.Currency
 	if currency == "" {
-		currency = "USD"
+		currency = currencyUSD
 	}
 
 	updated, err := uc.repo.Update(ctx, domain.Course{
@@ -149,15 +151,22 @@ func (uc *CatalogUseCase) CreateLesson(ctx context.Context, teacherID, courseID,
 	return lesson, nil
 }
 
+const (
+	currencyUSD = "USD"
+	videoType   = "video"
+)
+
 var lessonTypes = map[string]bool{
-	"video": true,
-	"text":  true,
-	"quiz":  true,
-	"mixed": true,
+	videoType: true,
+	"text":    true,
+	"quiz":    true,
+	"mixed":   true,
 }
 
 // UpdateLesson changes an owned lesson's title/type.
-func (uc *CatalogUseCase) UpdateLesson(ctx context.Context, teacherID, courseID, lessonID, title, lessonType string) (domain.Lesson, error) {
+func (uc *CatalogUseCase) UpdateLesson(
+	ctx context.Context, teacherID, courseID, lessonID, title, lessonType string,
+) (domain.Lesson, error) {
 	if title == "" {
 		return domain.Lesson{}, fmt.Errorf("%w: title is required", ErrValidation)
 	}
@@ -201,8 +210,8 @@ func (uc *CatalogUseCase) DeleteLesson(ctx context.Context, teacherID, courseID,
 }
 
 var mediaTypes = map[string]bool{
-	"video": true,
-	"audio": true,
+	videoType: true,
+	"audio":   true,
 }
 
 // MediaInput carries the fields of PUT .../lessons/{id}/media, bundled into a
@@ -262,7 +271,9 @@ type MaterialInput struct {
 }
 
 // AddMaterial attaches a new downloadable material to an owned lesson.
-func (uc *CatalogUseCase) AddMaterial(ctx context.Context, teacherID, courseID, lessonID string, in MaterialInput) (domain.Material, error) {
+func (uc *CatalogUseCase) AddMaterial(
+	ctx context.Context, teacherID, courseID, lessonID string, in MaterialInput,
+) (domain.Material, error) {
 	if in.Title == "" || in.URL == "" {
 		return domain.Material{}, fmt.Errorf("%w: title and url are required", ErrValidation)
 	}
