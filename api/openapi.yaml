@@ -183,6 +183,105 @@ paths:
         '404':
           description: Teacher not found
 
+  /teachers/{teacher_id}/ratings:
+    get:
+      summary: A teacher's aggregate 1-10 rating
+      description: >
+        Local rating system (internal/domain's CourseRating/TeacherRating —
+        separate from the practicum-proxied course review/rating below,
+        which has no notion of teachers). No authentication required.
+      tags:
+        - Teachers
+      parameters:
+        - in: path
+          name: teacher_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Aggregate rating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingSummary'
+        '404':
+          description: Teacher not found
+    post:
+      summary: Rate a teacher on a 1-10 scale
+      description: >
+        Student only. The student must be enrolled in at least one course
+        taught by teacher_id. Resubmitting overwrites the student's prior
+        score for this teacher rather than adding a second rating.
+      tags:
+        - Teachers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: teacher_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - score
+              properties:
+                score:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+      responses:
+        '201':
+          description: Rating recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherRating'
+        '400':
+          description: score is missing or outside 1-10
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller is not a student, or is not enrolled in any course by this teacher
+        '404':
+          description: teacher_id does not exist or does not belong to a teacher account
+
+  /teachers/{teacher_id}/ratings/me:
+    get:
+      summary: The caller's own rating for a teacher
+      tags:
+        - Teachers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: teacher_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The caller's rating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherRating'
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller is not a student
+        '404':
+          description: teacher_id not found, or the caller has not rated this teacher yet
+
   # ---------------------------------------------------------
   # CATALOG
   # ---------------------------------------------------------
@@ -385,6 +484,105 @@ paths:
           description: Course not found
         '409':
           description: This student already reviewed this course
+
+  /catalog/courses/{course_id}/ratings:
+    get:
+      summary: A course's aggregate 1-10 rating
+      description: >
+        Local rating system (internal/domain's CourseRating — separate from
+        the singular /rating endpoint above, which proxies to the
+        practicum-team service). No authentication required.
+      tags:
+        - Catalog
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Aggregate rating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingSummary'
+        '404':
+          description: Course not found
+    post:
+      summary: Rate a course on a 1-10 scale
+      description: >
+        Student only. The student must hold an active access grant for the
+        course. Resubmitting overwrites the student's prior score for this
+        course rather than adding a second rating.
+      tags:
+        - Catalog
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - score
+              properties:
+                score:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+      responses:
+        '201':
+          description: Rating recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseRating'
+        '400':
+          description: score is missing or outside 1-10
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller is not a student, or does not hold an active entitlement for this course
+        '404':
+          description: Course not found
+
+  /catalog/courses/{course_id}/ratings/me:
+    get:
+      summary: The caller's own rating for a course
+      tags:
+        - Catalog
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The caller's rating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseRating'
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: Caller is not a student
+        '404':
+          description: Course not found, or the caller has not rated this course yet
 
   # ---------------------------------------------------------
   # USER — PROFILE MANAGEMENT
@@ -1539,6 +1737,60 @@ components:
           type: string
         user:
           $ref: '#/components/schemas/User'
+    RatingSummary:
+      type: object
+      description: >
+        Aggregate always computed from the underlying rating rows (AVG/COUNT),
+        never stored directly.
+      properties:
+        average_score:
+          type: number
+        ratings_count:
+          type: integer
+    CourseRating:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          minimum: 1
+          maximum: 10
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TeacherRating:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        teacher_id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          minimum: 1
+          maximum: 10
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Course:
       type: object
       properties:

@@ -22,6 +22,8 @@ type paymentStubEntRepo struct {
 	hasActiveGrant    bool
 	history           []domain.PaymentHistoryEntry
 	historyErr        error
+	enrolledCourses   []domain.Course
+	enrolledErr       error
 }
 
 func (s *paymentStubEntRepo) CreatePaymentAndGrant(_ context.Context, p domain.Payment, g domain.AccessGrant) error {
@@ -52,7 +54,7 @@ func (s *paymentStubEntRepo) LogAccessCheck(_ context.Context, _ domain.AccessCh
 }
 
 func (s *paymentStubEntRepo) GetEnrolledCourses(_ context.Context, _ string) ([]domain.Course, error) {
-	return nil, nil
+	return s.enrolledCourses, s.enrolledErr
 }
 
 func (s *paymentStubEntRepo) ListPayments(_ context.Context, _ string) ([]domain.PaymentHistoryEntry, error) {
@@ -99,13 +101,15 @@ func (s *paymentStubCatRepo) SetExternalCourseID(_ context.Context, _, _ string)
 type paymentStubUserRepo struct {
 	balance   float64
 	deductErr error
+	user      domain.User
+	userErr   error
 }
 
 func (s *paymentStubUserRepo) Create(_ domain.User) (domain.User, error) { return domain.User{}, nil }
 
 func (s *paymentStubUserRepo) GetByEmail(_ string) (domain.User, error) { return domain.User{}, nil }
 
-func (s *paymentStubUserRepo) GetByID(_ string) (domain.User, error) { return domain.User{}, nil }
+func (s *paymentStubUserRepo) GetByID(_ string) (domain.User, error) { return s.user, s.userErr }
 
 func (s *paymentStubUserRepo) DeductBalance(_ context.Context, _ string, _ float64) (float64, error) {
 	return s.balance, s.deductErr

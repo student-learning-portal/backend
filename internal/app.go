@@ -99,6 +99,13 @@ func Run() {
 	reviewRepo := practicum.NewReviewRepository(practicumClient, catalogRepo, os.Getenv("PRACTICUM_INTEGRATION_TEACHER_ID"))
 	reviewUseCase := usecase.NewReviewUseCase(reviewRepo)
 
+	// Local 1-10 rating system for courses and teachers, stored in our own
+	// database — separate from the practicum-proxied review above, which has
+	// no notion of teachers at all (see internal/practicum).
+	courseRatingRepo := database.NewPostgresCourseRatingRepository(database.DB)
+	teacherRatingRepo := database.NewPostgresTeacherRatingRepository(database.DB)
+	ratingUseCase := usecase.NewRatingUseCase(courseRatingRepo, teacherRatingRepo, catalogRepo, entitlementRepo, userRepo)
+
 	handlers := delivery.Handlers{
 		Catalog:        delivery.NewCatalogHandler(catalogUseCase),
 		Auth:           delivery.NewAuthHandler(authUseCase, analytics),
@@ -111,6 +118,7 @@ func Run() {
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase),
 		Chat:           delivery.NewChatHandler(chatUseCase),
 		Review:         delivery.NewReviewHandler(reviewUseCase),
+		Rating:         delivery.NewRatingHandler(ratingUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)
