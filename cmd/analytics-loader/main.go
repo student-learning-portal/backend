@@ -18,7 +18,9 @@ import (
 const refreshTimeout = 5 * time.Minute
 
 func main() {
-	full := flag.Bool("full", false, "recompute the rollup from the entire event_log/access_grant history, ignoring the incremental watermark (manual reconciliation)")
+	full := flag.Bool("full", false,
+		"recompute the rollup from the entire event_log/access_grant history, "+
+			"ignoring the incremental watermark (manual reconciliation)")
 	flag.Parse()
 
 	logging.Init("analytics-loader")

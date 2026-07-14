@@ -97,7 +97,8 @@ func NewRouter(
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.DeleteLessonMedia))
 
 	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
-	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", auth(h.TeacherContent.DeleteMaterial))
+	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}",
+		auth(h.TeacherContent.DeleteMaterial))
 
 	// Chat: student <-> teacher, scoped to a course. A student uses their own
 	// thread (must be enrolled); a teacher uses per-student threads on courses

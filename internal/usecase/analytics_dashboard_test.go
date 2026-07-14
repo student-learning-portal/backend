@@ -20,9 +20,11 @@ type stubAnalyticsRepository struct {
 func (s *stubAnalyticsRepository) CourseStudentProgress(_ context.Context, _ string) ([]domain.StudentProgress, error) {
 	return s.rows, s.err
 }
+
 func (s *stubAnalyticsRepository) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
 	return s.courseRows, s.courseErr
 }
+
 func (s *stubAnalyticsRepository) RefreshStudentCourseRow(_ context.Context, _, _ string) error {
 	return nil
 }

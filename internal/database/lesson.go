@@ -147,8 +147,9 @@ func (r *PostgresLessonRepository) ReorderLessons(ctx context.Context, courseID 
 		return fmt.Errorf("reorder lessons: offset: %w", err)
 	}
 
+	var res sql.Result
 	for idx, id := range orderedIDs {
-		res, err := tx.ExecContext(ctx,
+		res, err = tx.ExecContext(ctx,
 			`UPDATE lessons SET position = $1, updated_at = now() WHERE id = $2 AND course_id = $3`,
 			idx, id, courseID,
 		)
@@ -181,7 +182,9 @@ func (r *PostgresLessonRepository) DeleteLesson(ctx context.Context, courseID, l
 // SetLessonMedia replaces any existing media row for the lesson with a single
 // new one — the player only ever reads the first media row for a lesson, so
 // this keeps "one playable asset per lesson" true at the write path too.
-func (r *PostgresLessonRepository) SetLessonMedia(ctx context.Context, lessonID, url string, durationMs int, mediaType string) (domain.Media, error) {
+func (r *PostgresLessonRepository) SetLessonMedia(
+	ctx context.Context, lessonID, url string, durationMs int, mediaType string,
+) (domain.Media, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Media{}, fmt.Errorf("set lesson media: begin tx: %w", err)

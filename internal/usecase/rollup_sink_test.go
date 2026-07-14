@@ -22,6 +22,7 @@ type spyAnalyticsRepo struct {
 func (s *spyAnalyticsRepo) CourseStudentProgress(_ context.Context, _ string) ([]domain.StudentProgress, error) {
 	return nil, nil
 }
+
 func (s *spyAnalyticsRepo) StudentCourseProgress(_ context.Context, _ string) ([]domain.CourseProgress, error) {
 	return nil, nil
 }

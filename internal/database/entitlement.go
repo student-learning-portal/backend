@@ -93,24 +93,24 @@ func (r *PostgresEntitlementRepository) SettleRefund(ctx context.Context, txnID 
 
 	if p.Status == "refunded" {
 		var balance float64
-		if err := tx.QueryRowContext(ctx,
+		if err = tx.QueryRowContext(ctx,
 			`SELECT wallet_balance FROM users WHERE id = $1`, p.ActorID,
 		).Scan(&balance); err != nil {
 			return domain.Payment{}, 0, fmt.Errorf("settle refund: read balance: %w", err)
 		}
-		if err := tx.Commit(); err != nil {
+		if err = tx.Commit(); err != nil {
 			return domain.Payment{}, 0, fmt.Errorf("settle refund: commit: %w", err)
 		}
 		return p, balance, nil
 	}
 
-	if _, err := tx.ExecContext(ctx,
+	if _, err = tx.ExecContext(ctx,
 		`UPDATE payment SET status = 'refunded' WHERE txn_id = $1`, txnID,
 	); err != nil {
 		return domain.Payment{}, 0, fmt.Errorf("settle refund: update payment: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx,
+	if _, err = tx.ExecContext(ctx,
 		`UPDATE access_grant SET revoked_at = $1, revoke_reason = 'refund'
 		 WHERE txn_id = $2 AND revoked_at IS NULL`,
 		time.Now(), txnID,
