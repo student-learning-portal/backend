@@ -20,6 +20,7 @@ type Handlers struct {
 	Results        *ResultsHandler
 	TeacherContent *TeacherContentHandler
 	Chat           *ChatHandler
+	Review         *ReviewHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -41,6 +42,8 @@ func NewRouter(
 
 	mux.HandleFunc("GET /api/v1/catalog/courses", h.Catalog.GetCourses)
 	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/lessons", h.Catalog.GetCourseLessons)
+	// Proxies to the practicum-team integration service (internal/practicum) — see ReviewHandler.
+	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/rating", h.Review.RatingSummary)
 
 	mux.HandleFunc("POST /api/v1/auth/register", h.Auth.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Auth.Login)
@@ -53,6 +56,9 @@ func NewRouter(
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
 	mux.HandleFunc("GET /api/v1/users/me/results", auth(h.Results.MyResults))
+
+	// Proxies to the practicum-team integration service (internal/practicum) — see ReviewHandler.
+	mux.HandleFunc("POST /api/v1/catalog/courses/{course_id}/comments", auth(h.Review.CreateReview))
 
 	mux.HandleFunc("PATCH /api/v1/users/me/email", auth(h.Profile.PatchEmail))
 	mux.HandleFunc("PATCH /api/v1/users/me/password", auth(h.Profile.PatchPassword))

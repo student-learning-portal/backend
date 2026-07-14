@@ -17,6 +17,11 @@ var ErrInvalidToken = errors.New("invalid or expired token")
 type claims struct {
 	Email string      `json:"email"`
 	Role  domain.Role `json:"role"`
+	// UserID duplicates RegisteredClaims.Subject under the "user_id" key, not
+	// "sub" — this is the claim shape the practicum-team integration's JWT
+	// middleware reads (pkg/jwt in their repo), so a token issued here is also
+	// valid on their service given a shared secret (see internal/practicum).
+	UserID string `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
@@ -33,8 +38,9 @@ func NewJWTTokenService(secret string, ttl time.Duration) *JWTTokenService {
 func (s *JWTTokenService) Generate(user domain.User) (string, error) {
 	now := time.Now()
 	c := claims{
-		Email: user.Email,
-		Role:  user.Role,
+		Email:  user.Email,
+		Role:   user.Role,
+		UserID: user.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID,
 			IssuedAt:  jwt.NewNumericDate(now),

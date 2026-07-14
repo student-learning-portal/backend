@@ -39,6 +39,14 @@ func (s *stubCatalogRepository) Update(_ context.Context, course domain.Course) 
 
 func (s *stubCatalogRepository) Delete(_ context.Context, _ string) error { return nil }
 
+func (s *stubCatalogRepository) GetExternalCourseID(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (s *stubCatalogRepository) SetExternalCourseID(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func TestListCourses_ReturnsCourses(t *testing.T) {
 	repo := &stubCatalogRepository{
 		courses: []domain.Course{{ID: "c1", Title: "Math"}, {ID: "c2", Title: "Science"}},

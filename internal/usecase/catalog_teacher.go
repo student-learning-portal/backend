@@ -9,11 +9,13 @@ import (
 
 // CourseInput carries the teacher-editable fields of a course.
 type CourseInput struct {
-	Title       string
-	Description string
-	Subject     string
-	Price       float64
-	Currency    string
+	Title           string
+	Description     string
+	Subject         string
+	Price           float64
+	Currency        string
+	Difficulty      domain.DifficultyLevel
+	DurationMinutes int
 }
 
 var courseStatuses = map[string]bool{
@@ -43,6 +45,12 @@ func validateCourseInput(in CourseInput) error {
 	if in.Price < 0 {
 		return fmt.Errorf("%w: price must not be negative", ErrValidation)
 	}
+	if in.Difficulty != "" && !in.Difficulty.Valid() {
+		return fmt.Errorf("%w: difficulty must be one of beginner/intermediate/advanced/all_levels", ErrValidation)
+	}
+	if in.DurationMinutes < 0 {
+		return fmt.Errorf("%w: duration_minutes must not be negative", ErrValidation)
+	}
 	return nil
 }
 
@@ -59,14 +67,20 @@ func (uc *CatalogUseCase) CreateCourse(ctx context.Context, teacherID string, in
 	if currency == "" {
 		currency = currencyUSD
 	}
+	difficulty := in.Difficulty
+	if difficulty == "" {
+		difficulty = domain.DifficultyAllLevels
+	}
 
 	course, err := uc.repo.Create(ctx, domain.Course{
-		TeacherID:   teacherID,
-		Title:       in.Title,
-		Description: in.Description,
-		Subject:     subject,
-		Price:       in.Price,
-		Currency:    currency,
+		TeacherID:       teacherID,
+		Title:           in.Title,
+		Description:     in.Description,
+		Subject:         subject,
+		Price:           in.Price,
+		Currency:        currency,
+		Difficulty:      difficulty,
+		DurationMinutes: in.DurationMinutes,
 	})
 	if err != nil {
 		return domain.Course{}, fmt.Errorf("create course: %w", err)
@@ -98,16 +112,22 @@ func (uc *CatalogUseCase) UpdateCourse(
 	if currency == "" {
 		currency = currencyUSD
 	}
+	difficulty := in.Difficulty
+	if difficulty == "" {
+		difficulty = domain.DifficultyAllLevels
+	}
 
 	updated, err := uc.repo.Update(ctx, domain.Course{
-		ID:          existing.ID,
-		TeacherID:   existing.TeacherID,
-		Title:       in.Title,
-		Description: in.Description,
-		Subject:     subject,
-		Price:       in.Price,
-		Currency:    currency,
-		Status:      status,
+		ID:              existing.ID,
+		TeacherID:       existing.TeacherID,
+		Title:           in.Title,
+		Description:     in.Description,
+		Subject:         subject,
+		Price:           in.Price,
+		Currency:        currency,
+		Status:          status,
+		Difficulty:      difficulty,
+		DurationMinutes: in.DurationMinutes,
 	})
 	if err != nil {
 		return domain.Course{}, fmt.Errorf("update course: %w", err)

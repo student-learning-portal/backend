@@ -13,6 +13,30 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
+// Defines values for CourseDifficulty.
+const (
+	CourseDifficultyAdvanced     CourseDifficulty = "advanced"
+	CourseDifficultyAllLevels    CourseDifficulty = "all_levels"
+	CourseDifficultyBeginner     CourseDifficulty = "beginner"
+	CourseDifficultyIntermediate CourseDifficulty = "intermediate"
+)
+
+// Valid indicates whether the value is a known member of the CourseDifficulty enum.
+func (e CourseDifficulty) Valid() bool {
+	switch e {
+	case CourseDifficultyAdvanced:
+		return true
+	case CourseDifficultyAllLevels:
+		return true
+	case CourseDifficultyBeginner:
+		return true
+	case CourseDifficultyIntermediate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CourseStatus.
 const (
 	CourseStatusArchived  CourseStatus = "archived"
@@ -28,6 +52,30 @@ func (e CourseStatus) Valid() bool {
 	case CourseStatusDraft:
 		return true
 	case CourseStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CourseInputDifficulty.
+const (
+	CourseInputDifficultyAdvanced     CourseInputDifficulty = "advanced"
+	CourseInputDifficultyAllLevels    CourseInputDifficulty = "all_levels"
+	CourseInputDifficultyBeginner     CourseInputDifficulty = "beginner"
+	CourseInputDifficultyIntermediate CourseInputDifficulty = "intermediate"
+)
+
+// Valid indicates whether the value is a known member of the CourseInputDifficulty enum.
+func (e CourseInputDifficulty) Valid() bool {
+	switch e {
+	case CourseInputDifficultyAdvanced:
+		return true
+	case CourseInputDifficultyAllLevels:
+		return true
+	case CourseInputDifficultyBeginner:
+		return true
+	case CourseInputDifficultyIntermediate:
 		return true
 	default:
 		return false
@@ -136,6 +184,24 @@ func (e LessonInputLessonType) Valid() bool {
 	case LessonInputLessonTypeText:
 		return true
 	case LessonInputLessonTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MessageSenderRole.
+const (
+	MessageSenderRoleStudent MessageSenderRole = "student"
+	MessageSenderRoleTeacher MessageSenderRole = "teacher"
+)
+
+// Valid indicates whether the value is a known member of the MessageSenderRole enum.
+func (e MessageSenderRole) Valid() bool {
+	switch e {
+	case MessageSenderRoleStudent:
+		return true
+	case MessageSenderRoleTeacher:
 		return true
 	default:
 		return false
@@ -255,16 +321,40 @@ func (e GetAnalyticsTeacherDashboard200JSONResponseBodyStudentsStatus) Valid() b
 
 // Defines values for PostAuthRegisterJSONBodyRole.
 const (
-	Student PostAuthRegisterJSONBodyRole = "student"
-	Teacher PostAuthRegisterJSONBodyRole = "teacher"
+	PostAuthRegisterJSONBodyRoleStudent PostAuthRegisterJSONBodyRole = "student"
+	PostAuthRegisterJSONBodyRoleTeacher PostAuthRegisterJSONBodyRole = "teacher"
 )
 
 // Valid indicates whether the value is a known member of the PostAuthRegisterJSONBodyRole enum.
 func (e PostAuthRegisterJSONBodyRole) Valid() bool {
 	switch e {
-	case Student:
+	case PostAuthRegisterJSONBodyRoleStudent:
 		return true
-	case Teacher:
+	case PostAuthRegisterJSONBodyRoleTeacher:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCatalogCoursesParamsDifficulty.
+const (
+	GetCatalogCoursesParamsDifficultyAdvanced     GetCatalogCoursesParamsDifficulty = "advanced"
+	GetCatalogCoursesParamsDifficultyAllLevels    GetCatalogCoursesParamsDifficulty = "all_levels"
+	GetCatalogCoursesParamsDifficultyBeginner     GetCatalogCoursesParamsDifficulty = "beginner"
+	GetCatalogCoursesParamsDifficultyIntermediate GetCatalogCoursesParamsDifficulty = "intermediate"
+)
+
+// Valid indicates whether the value is a known member of the GetCatalogCoursesParamsDifficulty enum.
+func (e GetCatalogCoursesParamsDifficulty) Valid() bool {
+	switch e {
+	case GetCatalogCoursesParamsDifficultyAdvanced:
+		return true
+	case GetCatalogCoursesParamsDifficultyAllLevels:
+		return true
+	case GetCatalogCoursesParamsDifficultyBeginner:
+		return true
+	case GetCatalogCoursesParamsDifficultyIntermediate:
 		return true
 	default:
 		return false
@@ -331,6 +421,30 @@ func (e PostPurchaseWebhookJSONBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for PatchTeacherCoursesCourseIdJSONBodyDifficulty.
+const (
+	PatchTeacherCoursesCourseIdJSONBodyDifficultyAdvanced     PatchTeacherCoursesCourseIdJSONBodyDifficulty = "advanced"
+	PatchTeacherCoursesCourseIdJSONBodyDifficultyAllLevels    PatchTeacherCoursesCourseIdJSONBodyDifficulty = "all_levels"
+	PatchTeacherCoursesCourseIdJSONBodyDifficultyBeginner     PatchTeacherCoursesCourseIdJSONBodyDifficulty = "beginner"
+	PatchTeacherCoursesCourseIdJSONBodyDifficultyIntermediate PatchTeacherCoursesCourseIdJSONBodyDifficulty = "intermediate"
+)
+
+// Valid indicates whether the value is a known member of the PatchTeacherCoursesCourseIdJSONBodyDifficulty enum.
+func (e PatchTeacherCoursesCourseIdJSONBodyDifficulty) Valid() bool {
+	switch e {
+	case PatchTeacherCoursesCourseIdJSONBodyDifficultyAdvanced:
+		return true
+	case PatchTeacherCoursesCourseIdJSONBodyDifficultyAllLevels:
+		return true
+	case PatchTeacherCoursesCourseIdJSONBodyDifficultyBeginner:
+		return true
+	case PatchTeacherCoursesCourseIdJSONBodyDifficultyIntermediate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PatchTeacherCoursesCourseIdJSONBodyStatus.
 const (
 	PatchTeacherCoursesCourseIdJSONBodyStatusArchived  PatchTeacherCoursesCourseIdJSONBodyStatus = "archived"
@@ -378,12 +492,16 @@ type AuthResponse struct {
 
 // Course defines model for Course.
 type Course struct {
-	CreatedAt   *time.Time          `json:"created_at,omitempty"`
-	Currency    *string             `json:"currency,omitempty"`
-	Description *string             `json:"description,omitempty"`
-	Id          *openapi_types.UUID `json:"id,omitempty"`
-	Price       *float32            `json:"price,omitempty"`
-	Status      *CourseStatus       `json:"status,omitempty"`
+	CreatedAt   *time.Time        `json:"created_at,omitempty"`
+	Currency    *string           `json:"currency,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Difficulty  *CourseDifficulty `json:"difficulty,omitempty"`
+
+	// DurationMinutes Teacher-supplied estimate of total course length; not derived from lesson media.
+	DurationMinutes *int                `json:"duration_minutes,omitempty"`
+	Id              *openapi_types.UUID `json:"id,omitempty"`
+	Price           *float32            `json:"price,omitempty"`
+	Status          *CourseStatus       `json:"status,omitempty"`
 
 	// Subject Subject area, e.g. "english", "programming", "physics"
 	Subject   *string             `json:"subject,omitempty"`
@@ -392,20 +510,30 @@ type Course struct {
 	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
 }
 
+// CourseDifficulty defines model for Course.Difficulty.
+type CourseDifficulty string
+
 // CourseStatus defines model for Course.Status.
 type CourseStatus string
 
 // CourseInput defines model for CourseInput.
 type CourseInput struct {
 	// Currency Defaults to "USD" when omitted.
-	Currency    *string  `json:"currency,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	Price       *float32 `json:"price,omitempty"`
+	Currency    *string `json:"currency,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Difficulty Defaults to "all_levels" when omitted.
+	Difficulty      *CourseInputDifficulty `json:"difficulty,omitempty"`
+	DurationMinutes *int                   `json:"duration_minutes,omitempty"`
+	Price           *float32               `json:"price,omitempty"`
 
 	// Subject Defaults to "general" when omitted.
 	Subject *string `json:"subject,omitempty"`
 	Title   string  `json:"title"`
 }
+
+// CourseInputDifficulty Defaults to "all_levels" when omitted.
+type CourseInputDifficulty string
 
 // CourseResult defines model for CourseResult.
 type CourseResult struct {
@@ -487,6 +615,23 @@ type Material struct {
 	Url   *string `json:"url,omitempty"`
 }
 
+// Message defines model for Message.
+type Message struct {
+	Body       *string            `json:"body,omitempty"`
+	CourseId   *string            `json:"course_id,omitempty"`
+	CreatedAt  *time.Time         `json:"created_at,omitempty"`
+	Id         *string            `json:"id,omitempty"`
+	LessonId   *string            `json:"lesson_id,omitempty"`
+	SenderId   *string            `json:"sender_id,omitempty"`
+	SenderRole *MessageSenderRole `json:"sender_role,omitempty"`
+
+	// StudentId The student participant (thread owner), regardless of who sent this message.
+	StudentId *string `json:"student_id,omitempty"`
+}
+
+// MessageSenderRole defines model for Message.SenderRole.
+type MessageSenderRole string
+
 // Progress defines model for Progress.
 type Progress struct {
 	Completed       *bool      `json:"completed,omitempty"`
@@ -494,6 +639,15 @@ type Progress struct {
 	PercentComplete *float32   `json:"percent_complete,omitempty"`
 	ProgressSeconds *int       `json:"progress_seconds,omitempty"`
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+}
+
+// SendMessage defines model for SendMessage.
+type SendMessage struct {
+	// Body Message text (whitespace-only is rejected).
+	Body string `json:"body"`
+
+	// LessonId Optional lesson this message is about.
+	LessonId *string `json:"lesson_id,omitempty"`
 }
 
 // StudentResults defines model for StudentResults.
@@ -548,6 +702,16 @@ type TeacherProfile struct {
 
 // TeacherProfileRole defines model for TeacherProfile.Role.
 type TeacherProfileRole string
+
+// ThreadSummary defines model for ThreadSummary.
+type ThreadSummary struct {
+	CourseId     *string    `json:"course_id,omitempty"`
+	LastAt       *time.Time `json:"last_at,omitempty"`
+	LastMessage  *string    `json:"last_message,omitempty"`
+	MessageCount *int       `json:"message_count,omitempty"`
+	StudentId    *string    `json:"student_id,omitempty"`
+	StudentName  *string    `json:"student_name,omitempty"`
+}
 
 // User defines model for User.
 type User struct {
@@ -610,18 +774,32 @@ type GetCatalogCoursesParams struct {
 	MinPrice *float32 `form:"min_price,omitempty" json:"min_price,omitempty"`
 
 	// MaxPrice Upper bound (inclusive) for course price
-	MaxPrice  *float32                          `form:"max_price,omitempty" json:"max_price,omitempty"`
-	SortBy    *GetCatalogCoursesParamsSortBy    `form:"sort_by,omitempty" json:"sort_by,omitempty"`
-	SortOrder *GetCatalogCoursesParamsSortOrder `form:"sort_order,omitempty" json:"sort_order,omitempty"`
-	Page      *int                              `form:"page,omitempty" json:"page,omitempty"`
-	PageSize  *int                              `form:"page_size,omitempty" json:"page_size,omitempty"`
+	MaxPrice *float32 `form:"max_price,omitempty" json:"max_price,omitempty"`
+
+	// Difficulty Exact match against the course's difficulty level
+	Difficulty *GetCatalogCoursesParamsDifficulty `form:"difficulty,omitempty" json:"difficulty,omitempty"`
+	SortBy     *GetCatalogCoursesParamsSortBy     `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+	SortOrder  *GetCatalogCoursesParamsSortOrder  `form:"sort_order,omitempty" json:"sort_order,omitempty"`
+	Page       *int                               `form:"page,omitempty" json:"page,omitempty"`
+	PageSize   *int                               `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
+
+// GetCatalogCoursesParamsDifficulty defines parameters for GetCatalogCourses.
+type GetCatalogCoursesParamsDifficulty string
 
 // GetCatalogCoursesParamsSortBy defines parameters for GetCatalogCourses.
 type GetCatalogCoursesParamsSortBy string
 
 // GetCatalogCoursesParamsSortOrder defines parameters for GetCatalogCourses.
 type GetCatalogCoursesParamsSortOrder string
+
+// PostCatalogCoursesCourseIdCommentsJSONBody defines parameters for PostCatalogCoursesCourseIdComments.
+type PostCatalogCoursesCourseIdCommentsJSONBody struct {
+	Rating int `json:"rating"`
+
+	// Text Optional review text
+	Text *string `json:"text,omitempty"`
+}
 
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody defines parameters for PostPlayerCoursesCourseIdLessonsLessonIdProgress.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody struct {
@@ -656,15 +834,22 @@ type PostPurchaseWebhookJSONBodyStatus string
 // PatchTeacherCoursesCourseIdJSONBody defines parameters for PatchTeacherCoursesCourseId.
 type PatchTeacherCoursesCourseIdJSONBody struct {
 	// Currency Defaults to "USD" when omitted.
-	Currency    *string                                   `json:"currency,omitempty"`
-	Description *string                                   `json:"description,omitempty"`
-	Price       *float32                                  `json:"price,omitempty"`
-	Status      PatchTeacherCoursesCourseIdJSONBodyStatus `json:"status"`
+	Currency    *string `json:"currency,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Difficulty Defaults to "all_levels" when omitted.
+	Difficulty      *PatchTeacherCoursesCourseIdJSONBodyDifficulty `json:"difficulty,omitempty"`
+	DurationMinutes *int                                           `json:"duration_minutes,omitempty"`
+	Price           *float32                                       `json:"price,omitempty"`
+	Status          PatchTeacherCoursesCourseIdJSONBodyStatus      `json:"status"`
 
 	// Subject Defaults to "general" when omitted.
 	Subject *string `json:"subject,omitempty"`
 	Title   string  `json:"title"`
 }
+
+// PatchTeacherCoursesCourseIdJSONBodyDifficulty defines parameters for PatchTeacherCoursesCourseId.
+type PatchTeacherCoursesCourseIdJSONBodyDifficulty string
 
 // PatchTeacherCoursesCourseIdJSONBodyStatus defines parameters for PatchTeacherCoursesCourseId.
 type PatchTeacherCoursesCourseIdJSONBodyStatus string
@@ -722,6 +907,12 @@ type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 // PostAuthRegisterJSONRequestBody defines body for PostAuthRegister for application/json ContentType.
 type PostAuthRegisterJSONRequestBody PostAuthRegisterJSONBody
 
+// PostCatalogCoursesCourseIdCommentsJSONRequestBody defines body for PostCatalogCoursesCourseIdComments for application/json ContentType.
+type PostCatalogCoursesCourseIdCommentsJSONRequestBody PostCatalogCoursesCourseIdCommentsJSONBody
+
+// PostCoursesCourseIdMessagesJSONRequestBody defines body for PostCoursesCourseIdMessages for application/json ContentType.
+type PostCoursesCourseIdMessagesJSONRequestBody = SendMessage
+
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONRequestBody defines body for PostPlayerCoursesCourseIdLessonsLessonIdProgress for application/json ContentType.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONRequestBody PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody
 
@@ -754,6 +945,9 @@ type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONRequestBody PostTeach
 
 // PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody defines body for PutTeacherCoursesCourseIdLessonsLessonIdMedia for application/json ContentType.
 type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody
+
+// PostTeacherCoursesCourseIdThreadsStudentIdMessagesJSONRequestBody defines body for PostTeacherCoursesCourseIdThreadsStudentIdMessages for application/json ContentType.
+type PostTeacherCoursesCourseIdThreadsStudentIdMessagesJSONRequestBody = SendMessage
 
 // PostUsersMeAvatarMultipartRequestBody defines body for PostUsersMeAvatar for multipart/form-data ContentType.
 type PostUsersMeAvatarMultipartRequestBody PostUsersMeAvatarMultipartBody

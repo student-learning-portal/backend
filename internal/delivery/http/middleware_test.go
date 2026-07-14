@@ -199,6 +199,14 @@ func (s *middlewareCatalogRepo) Update(_ context.Context, c domain.Course) (doma
 
 func (s *middlewareCatalogRepo) Delete(_ context.Context, _ string) error { return nil }
 
+func (s *middlewareCatalogRepo) GetExternalCourseID(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (s *middlewareCatalogRepo) SetExternalCourseID(_ context.Context, _, _ string) error {
+	return nil
+}
+
 // noCourseCatalogRepo is a middlewareCatalogRepo preconfigured to always
 // report the course as not found, so the teacher bypass never fires.
 func noCourseCatalogRepo() *middlewareCatalogRepo {
