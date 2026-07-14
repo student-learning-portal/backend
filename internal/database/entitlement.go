@@ -173,7 +173,8 @@ func (r *PostgresEntitlementRepository) GetActiveGrant(ctx context.Context, acto
 
 func (r *PostgresEntitlementRepository) GetEnrolledCourses(ctx context.Context, actorID string) ([]domain.Course, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.teacher_id, c.title, c.description, c.subject, c.price, c.currency, c.status, c.created_at, c.updated_at
+		`SELECT c.id, c.teacher_id, c.title, c.description, c.subject, c.price, c.currency, c.status,
+		        c.difficulty, c.duration_minutes, c.created_at, c.updated_at
 		 FROM courses c
 		 INNER JOIN access_grant ag ON ag.course_id = c.id::text
 		 WHERE ag.actor_id = $1 AND ag.revoked_at IS NULL
