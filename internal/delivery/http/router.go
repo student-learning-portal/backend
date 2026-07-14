@@ -102,9 +102,11 @@ func NewRouter(
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}", auth(h.TeacherContent.DeleteLesson))
 
 	mux.HandleFunc("PUT /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.SetLessonMedia))
+	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media/upload", auth(h.TeacherContent.UploadLessonMedia))
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.DeleteLessonMedia))
 
 	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
+	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload", auth(h.TeacherContent.UploadMaterial))
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}",
 		auth(h.TeacherContent.DeleteMaterial))
 

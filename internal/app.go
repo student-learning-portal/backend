@@ -115,7 +115,7 @@ func Run() {
 		Profile:        delivery.NewProfileHandler(authUseCase, uploadsDir),
 		Analytics:      delivery.NewAnalyticsHandler(analyticsUseCase),
 		Results:        delivery.NewResultsHandler(resultsUseCase),
-		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase),
+		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase, uploadsDir),
 		Chat:           delivery.NewChatHandler(chatUseCase),
 		Review:         delivery.NewReviewHandler(reviewUseCase),
 		Rating:         delivery.NewRatingHandler(ratingUseCase),

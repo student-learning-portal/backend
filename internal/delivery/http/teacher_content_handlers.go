@@ -3,8 +3,14 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
@@ -15,10 +21,11 @@ import (
 // we only gate on role.
 type TeacherContentHandler struct {
 	catalogUseCase *usecase.CatalogUseCase
+	uploadsDir     string
 }
 
-func NewTeacherContentHandler(uc *usecase.CatalogUseCase) *TeacherContentHandler {
-	return &TeacherContentHandler{catalogUseCase: uc}
+func NewTeacherContentHandler(uc *usecase.CatalogUseCase, uploadsDir string) *TeacherContentHandler {
+	return &TeacherContentHandler{catalogUseCase: uc, uploadsDir: uploadsDir}
 }
 
 // teacherLessonDTO carries a lesson's fields under the lesson_id/lesson_type
@@ -314,6 +321,159 @@ func (h *TeacherContentHandler) SetLessonMedia(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, toMediaDTO(media))
 }
 
+// Sentinel errors returned by receiveUpload; writeUploadError maps each to
+// the right HTTP status.
+var (
+	errUploadInvalidForm     = errors.New("file too large or invalid multipart form")
+	errUploadFileRequired    = errors.New("file is required")
+	errUploadReadFailed      = errors.New("could not read file")
+	errUploadUnsupportedType = errors.New("unsupported file type")
+	errUploadSaveFailed      = errors.New("failed to save file")
+)
+
+// uploadedFile is what receiveUpload returns once a file has been sniffed,
+// validated, and written to disk.
+type uploadedFile struct {
+	url              string
+	mimeType         string
+	originalFilename string
+}
+
+// receiveUpload parses a multipart "file" field (bounded by maxBytes),
+// sniffs its real MIME type, validates it via resolveExt (which returns the
+// extension to save it under and whether the type is allowed at all), and
+// saves it under uploadsDir/lessons/{lessonID}/{uuid}{ext}.
+//
+// lessonID must already be validated by the caller (e.g. as a UUID) since it
+// becomes part of the destination path — gosec's taint analysis can't see
+// that check, hence the nolint on the filesystem calls below.
+func (h *TeacherContentHandler) receiveUpload(
+	r *http.Request, lessonID string, maxBytes int64, resolveExt func(mimeType string) (ext string, ok bool),
+) (uploadedFile, error) {
+	if err := r.ParseMultipartForm(maxBytes); err != nil { //nolint:gosec // size is bounded by the caller-supplied maxBytes
+		return uploadedFile{}, errUploadInvalidForm
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		return uploadedFile{}, errUploadFileRequired
+	}
+	defer file.Close()
+
+	header := make([]byte, 512) //nolint:mnd // 512 is the minimum for http.DetectContentType
+	n, err := file.Read(header)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return uploadedFile{}, errUploadReadFailed
+	}
+	mimeType := http.DetectContentType(header[:n])
+	ext, ok := resolveExt(mimeType)
+	if !ok {
+		return uploadedFile{}, fmt.Errorf("%w: %q", errUploadUnsupportedType, mimeType)
+	}
+
+	destDir := filepath.Join(h.uploadsDir, "lessons", lessonID)   //nolint:gosec // lessonID validated as a UUID by the caller
+	if mkdirErr := os.MkdirAll(destDir, 0o755); mkdirErr != nil { //nolint:mnd,gosec // 0755 standard perm; destDir validated above
+		return uploadedFile{}, errUploadSaveFailed
+	}
+
+	filename := uuid.NewString() + ext
+	destPath := filepath.Join(destDir, filename) //nolint:gosec // filename is {uuid}{ext}, no user-controlled components
+	out, err := os.Create(destPath)              //nolint:gosec // same as above
+	if err != nil {
+		return uploadedFile{}, errUploadSaveFailed
+	}
+	defer out.Close()
+
+	if _, writeErr := out.Write(header[:n]); writeErr != nil {
+		return uploadedFile{}, errUploadSaveFailed
+	}
+	if _, copyErr := io.Copy(out, file); copyErr != nil {
+		return uploadedFile{}, errUploadSaveFailed
+	}
+
+	return uploadedFile{
+		url:              fmt.Sprintf("/uploads/lessons/%s/%s", lessonID, filename),
+		mimeType:         mimeType,
+		originalFilename: fileHeader.Filename,
+	}, nil
+}
+
+// writeUploadError maps a receiveUpload error to the matching HTTP response.
+// allowedList is a human-readable summary appended to the 415 message (e.g.
+// "mp4, webm, mp3, wav, ogg").
+func writeUploadError(w http.ResponseWriter, err error, allowedList string) {
+	switch {
+	case errors.Is(err, errUploadUnsupportedType):
+		writeError(w, http.StatusUnsupportedMediaType, fmt.Sprintf("%s; allowed: %s", err.Error(), allowedList))
+	case errors.Is(err, errUploadInvalidForm), errors.Is(err, errUploadFileRequired), errors.Is(err, errUploadReadFailed):
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+const maxLessonMediaBytes = 500 << 20 // 500 MB, video is the largest asset type we host
+
+// allowedMediaUploadTypes maps a sniffed MIME type to the file extension and
+// the media_type value SetLessonMedia expects (see usecase.MediaInput).
+var allowedMediaUploadTypes = map[string]struct {
+	ext  string
+	kind string
+}{
+	"video/mp4":  {".mp4", "video"}, //nolint:goconst // "video" here is a media_type value, not the unrelated LessonType enum
+	"video/webm": {".webm", "video"},
+	"audio/mpeg": {".mp3", "audio"},
+	"audio/wav":  {".wav", "audio"},
+	"audio/ogg":  {".ogg", "audio"},
+}
+
+// UploadLessonMedia handles POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media/upload.
+// Accepts multipart/form-data with a "file" field (video/audio, max 500 MB)
+// and an optional "duration_seconds" field (the frontend reads this from the
+// browser's own media metadata before uploading, since we don't probe media
+// files server-side). Saves the file via receiveUpload and reuses
+// SetLessonMedia for the actual DB write, so ownership/validation stay in
+// one place.
+func (h *TeacherContentHandler) UploadLessonMedia(w http.ResponseWriter, r *http.Request) {
+	claims, ok := requireTeacher(w, r)
+	if !ok {
+		return
+	}
+	courseID := r.PathValue(keyCourseID)
+	lessonID := r.PathValue(keyLessonID)
+	if _, uuidErr := uuid.Parse(lessonID); uuidErr != nil {
+		writeError(w, http.StatusBadRequest, "invalid lesson_id")
+		return
+	}
+
+	uploaded, err := h.receiveUpload(r, lessonID, maxLessonMediaBytes, func(mimeType string) (string, bool) {
+		info, ok := allowedMediaUploadTypes[mimeType]
+		return info.ext, ok
+	})
+	if err != nil {
+		writeUploadError(w, err, "mp4, webm, mp3, wav, ogg")
+		return
+	}
+
+	durationSeconds := 0
+	if v := r.FormValue("duration_seconds"); v != "" {
+		if d, convErr := strconv.Atoi(v); convErr == nil && d >= 0 {
+			durationSeconds = d
+		}
+	}
+
+	media, err := h.catalogUseCase.SetLessonMedia(r.Context(), claims.UserID, courseID, lessonID, usecase.MediaInput{
+		URL:             uploaded.url,
+		DurationSeconds: durationSeconds,
+		MediaType:       allowedMediaUploadTypes[uploaded.mimeType].kind,
+	})
+	if err != nil {
+		writeCourseUseCaseError(w, err, "failed to set lesson media")
+		return
+	}
+	writeJSON(w, http.StatusOK, toMediaDTO(media))
+}
+
 // DeleteLessonMedia handles DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media.
 func (h *TeacherContentHandler) DeleteLessonMedia(w http.ResponseWriter, r *http.Request) {
 	claims, ok := requireTeacher(w, r)
@@ -355,6 +515,62 @@ func (h *TeacherContentHandler) AddMaterial(w http.ResponseWriter, r *http.Reque
 		Title: req.Title,
 		URL:   req.URL,
 		Type:  req.Type,
+	})
+	if err != nil {
+		writeCourseUseCaseError(w, err, "failed to add material")
+		return
+	}
+	writeJSON(w, http.StatusCreated, toMaterialResponseDTO(material))
+}
+
+const maxLessonMaterialBytes = 50 << 20 // 50 MB, documents/attachments
+
+// allowedMaterialUploadTypes maps a sniffed MIME type to the file extension
+// and the material `type` value AddMaterial stores.
+var allowedMaterialUploadTypes = map[string]struct {
+	ext string
+	typ string
+}{
+	"application/pdf": {".pdf", "pdf"},
+	"application/zip": {".zip", "zip"},
+	"image/jpeg":      {".jpg", "image"},
+	"image/png":       {".png", "image"},
+}
+
+// UploadMaterial handles POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload.
+// Accepts multipart/form-data with a "file" field (max 50 MB) and an optional
+// "title" field (defaults to the uploaded filename). Saves the file via
+// receiveUpload and reuses AddMaterial for the DB write.
+func (h *TeacherContentHandler) UploadMaterial(w http.ResponseWriter, r *http.Request) {
+	claims, ok := requireTeacher(w, r)
+	if !ok {
+		return
+	}
+	courseID := r.PathValue(keyCourseID)
+	lessonID := r.PathValue(keyLessonID)
+	if _, uuidErr := uuid.Parse(lessonID); uuidErr != nil {
+		writeError(w, http.StatusBadRequest, "invalid lesson_id")
+		return
+	}
+
+	uploaded, err := h.receiveUpload(r, lessonID, maxLessonMaterialBytes, func(mimeType string) (string, bool) {
+		info, ok := allowedMaterialUploadTypes[mimeType]
+		return info.ext, ok
+	})
+	if err != nil {
+		writeUploadError(w, err, "pdf, zip, jpeg, png")
+		return
+	}
+
+	title := r.FormValue("title")
+	if title == "" {
+		title = uploaded.originalFilename
+	}
+
+	material, err := h.catalogUseCase.AddMaterial(r.Context(), claims.UserID, courseID, lessonID, usecase.MaterialInput{
+		Title: title,
+		URL:   uploaded.url,
+		Type:  allowedMaterialUploadTypes[uploaded.mimeType].typ,
 	})
 	if err != nil {
 		writeCourseUseCaseError(w, err, "failed to add material")

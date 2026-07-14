@@ -1468,6 +1468,64 @@ paths:
         '404':
           description: Course or lesson not found
 
+  /teacher/courses/{course_id}/lessons/{lesson_id}/media/upload:
+    post:
+      summary: Upload a lesson's playable media asset as a file
+      description: >
+        Alternative to PUT .../media for teachers who have a local file
+        instead of an already-hosted URL. Saved under
+        uploadsDir/lessons/{lesson_id}/ and served back from /uploads/, then
+        stored via the same path as the URL-based flow (SetLessonMedia).
+        `duration_seconds` should be read client-side from the browser's own
+        media metadata before uploading — the server does not probe files.
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: video/mp4, video/webm, audio/mpeg, audio/wav, or audio/ogg — max 500 MB
+                duration_seconds:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Media uploaded and set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherMedia'
+        '400':
+          description: Missing file, invalid lesson_id, or invalid multipart form
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+        '415':
+          description: Unsupported file type
+
   /teacher/courses/{course_id}/lessons/{lesson_id}/materials:
     post:
       summary: Attach a downloadable material to a lesson
@@ -1517,6 +1575,61 @@ paths:
           description: Not the owning teacher
         '404':
           description: Course or lesson not found
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload:
+    post:
+      summary: Upload a downloadable material as a file
+      description: >
+        Alternative to POST .../materials for teachers who have a local file
+        instead of an already-hosted URL. Saved under
+        uploadsDir/lessons/{lesson_id}/ and served back from /uploads/.
+        `title` defaults to the uploaded filename when omitted.
+      tags:
+        - Teacher Content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lesson_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: application/pdf, application/zip, image/jpeg, or image/png — max 50 MB
+                title:
+                  type: string
+      responses:
+        '201':
+          description: Material uploaded and attached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherMaterial'
+        '400':
+          description: Missing file, invalid lesson_id, or invalid multipart form
+        '403':
+          description: Not the owning teacher
+        '404':
+          description: Course or lesson not found
+        '415':
+          description: Unsupported file type
 
   /teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}:
     delete:
