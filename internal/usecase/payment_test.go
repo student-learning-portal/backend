@@ -15,13 +15,15 @@ type stubPaymentUserRepo struct {
 	creditErr    error
 	deductCalled bool
 	creditCalled bool
+	user         domain.User
+	userErr      error
 }
 
 func (s *stubPaymentUserRepo) Create(_ domain.User) (domain.User, error) { return domain.User{}, nil }
 
 func (s *stubPaymentUserRepo) GetByEmail(_ string) (domain.User, error) { return domain.User{}, nil }
 
-func (s *stubPaymentUserRepo) GetByID(_ string) (domain.User, error) { return domain.User{}, nil }
+func (s *stubPaymentUserRepo) GetByID(_ string) (domain.User, error) { return s.user, s.userErr }
 
 func (s *stubPaymentUserRepo) UpdateEmail(_ context.Context, _, _ string) (domain.User, error) {
 	return domain.User{}, nil
@@ -65,6 +67,8 @@ type stubEntitlementRepo struct {
 	hasActiveErr      error
 	history           []domain.PaymentHistoryEntry
 	historyErr        error
+	enrolledCourses   []domain.Course
+	enrolledErr       error
 }
 
 func (s *stubEntitlementRepo) CreatePaymentAndGrant(_ context.Context, p domain.Payment, g domain.AccessGrant) error {
@@ -99,7 +103,7 @@ func (s *stubEntitlementRepo) LogAccessCheck(_ context.Context, _ domain.AccessC
 }
 
 func (s *stubEntitlementRepo) GetEnrolledCourses(_ context.Context, _ string) ([]domain.Course, error) {
-	return nil, nil
+	return s.enrolledCourses, s.enrolledErr
 }
 
 func newPaymentUC(ent *stubEntitlementRepo, cat *stubCatalogRepository, usr *stubPaymentUserRepo) *PaymentUseCase {

@@ -21,6 +21,7 @@ type Handlers struct {
 	TeacherContent *TeacherContentHandler
 	Chat           *ChatHandler
 	Review         *ReviewHandler
+	Rating         *RatingHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -52,6 +53,7 @@ func NewRouter(
 	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}", h.Auth.GetTeacher)
 
 	auth := RequireAuth(tokens)
+	registerRatingRoutes(mux, h, auth)
 	guard := RequireEntitlement(entitlements, catalog, analytics)
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
@@ -116,4 +118,17 @@ func NewRouter(
 	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/threads/{student_id}/messages", auth(h.Chat.TeacherSend))
 
 	return WithLogContext(WithAccessLog(mux))
+}
+
+// registerRatingRoutes wires the local 1-10 rating system (separate from the
+// practicum-proxied course review/rating under /catalog/courses/{course_id}/rating
+// and /comments): see RatingHandler. Split out of NewRouter to keep it readable.
+func registerRatingRoutes(mux *http.ServeMux, h Handlers, auth func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}/ratings", h.Rating.TeacherRatingSummary)
+	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/ratings", h.Rating.CourseRatingSummary)
+
+	mux.HandleFunc("POST /api/v1/catalog/courses/{course_id}/ratings", auth(h.Rating.RateCourse))
+	mux.HandleFunc("POST /api/v1/teachers/{teacher_id}/ratings", auth(h.Rating.RateTeacher))
+	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/ratings/me", auth(h.Rating.MyCourseRating))
+	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}/ratings/me", auth(h.Rating.MyTeacherRating))
 }
