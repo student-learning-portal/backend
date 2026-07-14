@@ -180,6 +180,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 		Analytics:      delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
 		Results:        delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db), domain.DefaultRiskThresholds)),
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUC),
+		Chat:           delivery.NewChatHandler(usecase.NewChatUseCase(database.NewPostgresChatRepository(db), catalogRepo, entitlementRepo)),
 	}
 	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir))
 }

@@ -69,6 +69,9 @@ func Run() {
 	resultsRepo := database.NewPostgresResultsRepository(database.DB)
 	resultsUseCase := usecase.NewResultsUseCase(resultsRepo, domain.DefaultRiskThresholds)
 
+	chatRepo := database.NewPostgresChatRepository(database.DB)
+	chatUseCase := usecase.NewChatUseCase(chatRepo, catalogRepo, entitlementRepo)
+
 	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
 	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
 	if err := os.MkdirAll(filepath.Join(uploadsDir, "avatars"), 0o755); err != nil {
@@ -91,6 +94,7 @@ func Run() {
 		Analytics:      delivery.NewAnalyticsHandler(analyticsUseCase),
 		Results:        delivery.NewResultsHandler(resultsUseCase),
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase),
+		Chat:           delivery.NewChatHandler(chatUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)

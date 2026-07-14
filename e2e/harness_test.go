@@ -247,7 +247,7 @@ func truncateAll(t *testing.T, db *sql.DB) {
 	t.Helper()
 	_, err := db.Exec(`TRUNCATE TABLE
 		event_log, access_check_log, access_grant, payment, progress_state,
-		analytics_student_course, materials, media, lessons, courses, users
+		analytics_student_course, messages, materials, media, lessons, courses, users
 		RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("truncate: %v", err)

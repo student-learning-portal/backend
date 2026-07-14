@@ -19,6 +19,7 @@ type Handlers struct {
 	Analytics      *AnalyticsHandler
 	Results        *ResultsHandler
 	TeacherContent *TeacherContentHandler
+	Chat           *ChatHandler
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
@@ -97,6 +98,15 @@ func NewRouter(
 
 	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
 	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", auth(h.TeacherContent.DeleteMaterial))
+
+	// Chat: student <-> teacher, scoped to a course. A student uses their own
+	// thread (must be enrolled); a teacher uses per-student threads on courses
+	// they own. Role + enrollment/ownership are enforced inside the handlers.
+	mux.HandleFunc("GET /api/v1/courses/{course_id}/messages", auth(h.Chat.StudentThread))
+	mux.HandleFunc("POST /api/v1/courses/{course_id}/messages", auth(h.Chat.StudentSend))
+	mux.HandleFunc("GET /api/v1/teacher/courses/{course_id}/threads", auth(h.Chat.TeacherThreads))
+	mux.HandleFunc("GET /api/v1/teacher/courses/{course_id}/threads/{student_id}/messages", auth(h.Chat.TeacherThread))
+	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/threads/{student_id}/messages", auth(h.Chat.TeacherSend))
 
 	return WithLogContext(WithAccessLog(mux))
 }
