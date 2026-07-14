@@ -43,6 +43,11 @@ func (h *PurchaseHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if claims.Role == domain.RoleTeacher {
+		writeError(w, http.StatusForbidden, "teachers cannot purchase courses")
+		return
+	}
+
 	var req checkoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -119,6 +124,11 @@ func (h *PurchaseHandler) Refund(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "missing authentication")
+		return
+	}
+
+	if claims.Role == domain.RoleTeacher {
+		writeError(w, http.StatusForbidden, "teachers cannot refund courses")
 		return
 	}
 
