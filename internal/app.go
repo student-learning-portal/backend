@@ -12,6 +12,7 @@ import (
 	"github.com/student-learning-portal/backend/internal/domain"
 	"github.com/student-learning-portal/backend/internal/eventlog"
 	"github.com/student-learning-portal/backend/internal/logging"
+	"github.com/student-learning-portal/backend/internal/practicum"
 	"github.com/student-learning-portal/backend/internal/security"
 	"github.com/student-learning-portal/backend/internal/usecase"
 )
@@ -84,6 +85,20 @@ func Run() {
 
 	analyticsUseCase := usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)
 
+	// Course ratings/comments proxy to the practicum-team service rather than
+	// reimplementing their enrollment/progress-gated review logic locally —
+	// see internal/practicum. PRACTICUM_JWT_SECRET must equal *their*
+	// JWT_SECRET (a trust relationship between two independently deployed
+	// services, not a copy of our own auth secret) and
+	// PRACTICUM_INTEGRATION_TEACHER_ID must be a teacher account already
+	// registered on their side (their POST /auth/register_teacher, done once).
+	practicumClient := practicum.NewClient(
+		envOrDefault("PRACTICUM_API_URL", "http://10.93.27.25:8000/api/v1"),
+		os.Getenv("PRACTICUM_JWT_SECRET"),
+	)
+	reviewRepo := practicum.NewReviewRepository(practicumClient, catalogRepo, os.Getenv("PRACTICUM_INTEGRATION_TEACHER_ID"))
+	reviewUseCase := usecase.NewReviewUseCase(reviewRepo)
+
 	handlers := delivery.Handlers{
 		Catalog:        delivery.NewCatalogHandler(catalogUseCase),
 		Auth:           delivery.NewAuthHandler(authUseCase, analytics),
@@ -95,6 +110,7 @@ func Run() {
 		Results:        delivery.NewResultsHandler(resultsUseCase),
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUseCase),
 		Chat:           delivery.NewChatHandler(chatUseCase),
+		Review:         delivery.NewReviewHandler(reviewUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)

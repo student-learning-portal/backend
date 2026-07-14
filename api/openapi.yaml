@@ -213,6 +213,12 @@ paths:
             type: number
           description: Upper bound (inclusive) for course price
         - in: query
+          name: difficulty
+          schema:
+            type: string
+            enum: [beginner, intermediate, advanced, all_levels]
+          description: Exact match against the course's difficulty level
+        - in: query
           name: sort_by
           schema:
             type: string
@@ -272,6 +278,113 @@ paths:
                   $ref: '#/components/schemas/Lesson'
         '400':
           description: Missing course_id
+
+  /catalog/courses/{course_id}/rating:
+    get:
+      summary: A course's aggregate rating
+      description: >
+        Proxies to the practicum-team integration service
+        (internal/practicum) rather than a locally-stored rating — we do not
+        reimplement their review system. The course is mirrored into their
+        system on first request for it (lazily), so the very first call for
+        a given course incurs an extra round trip. No authentication
+        required.
+      tags:
+        - Catalog
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Aggregate rating
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  average_rating:
+                    type: number
+                  reviews_count:
+                    type: integer
+        '404':
+          description: Course not found
+        '500':
+          description: The practicum-team service is unreachable or returned an unexpected error
+
+  /catalog/courses/{course_id}/comments:
+    post:
+      summary: Leave a review for a course
+      description: >
+        Student only. Proxies to the practicum-team integration service,
+        which enforces the actual business rules: the student must hold an
+        active entitlement for the course and have completed more than 50%
+        of its lessons; one review per (course, student). This service does
+        not re-check those rules locally — see internal/practicum.
+      tags:
+        - Catalog
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: course_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                text:
+                  type: string
+                  maxLength: 2000
+                  description: Optional review text
+      responses:
+        '201':
+          description: Review created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  course_id:
+                    type: string
+                  student_id:
+                    type: string
+                  rating:
+                    type: integer
+                  text:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid rating/text, or malformed body
+        '401':
+          description: Missing or invalid bearer token
+        '403':
+          description: >
+            Caller is not a student, is not enrolled in the course, or has
+            not completed more than 50% of its lessons yet
+        '404':
+          description: Course not found
+        '409':
+          description: This student already reviewed this course
 
   # ---------------------------------------------------------
   # USER — PROFILE MANAGEMENT
@@ -1449,6 +1562,13 @@ components:
         status:
           type: string
           enum: [draft, published, archived]
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced, all_levels]
+          default: all_levels
+        duration_minutes:
+          type: integer
+          description: Teacher-supplied estimate of total course length; not derived from lesson media.
         created_at:
           type: string
           format: date-time
@@ -1592,6 +1712,13 @@ components:
         currency:
           type: string
           description: Defaults to "USD" when omitted.
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced, all_levels]
+          description: Defaults to "all_levels" when omitted.
+        duration_minutes:
+          type: integer
+          minimum: 0
     LessonInput:
       type: object
       required:

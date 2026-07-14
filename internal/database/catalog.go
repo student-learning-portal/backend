@@ -53,6 +53,10 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 		conditions = append(conditions, fmt.Sprintf("price <= $%d", len(args)+1))
 		args = append(args, *params.MaxPrice)
 	}
+	if params.Difficulty != "" {
+		conditions = append(conditions, fmt.Sprintf("difficulty = $%d", len(args)+1))
+		args = append(args, params.Difficulty)
+	}
 
 	where := "WHERE " + strings.Join(conditions, " AND ")
 
@@ -83,7 +87,7 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 	limitIdx := len(args) + 1
 	//nolint:gosec // sortBy validated against allowlist; sortOrder is "ASC"/"DESC" only; where uses parameterized placeholders
 	query := fmt.Sprintf(
-		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at
 		 FROM courses %s
 		 ORDER BY %s %s
 		 LIMIT $%d OFFSET $%d`,
@@ -106,7 +110,7 @@ func (r *PostgresCatalogRepository) GetCourses(params domain.CourseListParams) (
 
 func (r *PostgresCatalogRepository) GetByTeacherID(ctx context.Context, teacherID string) ([]domain.Course, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at
 		 FROM courses WHERE teacher_id = $1 ORDER BY created_at DESC`,
 		teacherID,
 	)
@@ -126,6 +130,7 @@ func scanCourseRows(rows *sql.Rows) ([]domain.Course, error) {
 		if err := rows.Scan(
 			&c.ID, &c.TeacherID, &c.Title, &c.Description,
 			&c.Subject, &c.Price, &c.Currency, &c.Status,
+			&c.Difficulty, &c.DurationMinutes,
 			&c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan course row: %w", err)
@@ -139,17 +144,18 @@ func scanCourseRows(rows *sql.Rows) ([]domain.Course, error) {
 }
 
 // Create inserts a new course owned by c.TeacherID. Status/currency defaults
-// are applied by the caller (usecase layer) before this is called.
+// (and difficulty, if unset) are applied by the caller (usecase layer) before
+// this is called.
 func (r *PostgresCatalogRepository) Create(ctx context.Context, c domain.Course) (domain.Course, error) {
 	var out domain.Course
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO courses (teacher_id, title, description, subject, price, currency)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
-		c.TeacherID, c.Title, c.Description, c.Subject, c.Price, c.Currency,
+		`INSERT INTO courses (teacher_id, title, description, subject, price, currency, difficulty, duration_minutes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at`,
+		c.TeacherID, c.Title, c.Description, c.Subject, c.Price, c.Currency, c.Difficulty, c.DurationMinutes,
 	).Scan(
-		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject,
-		&out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status,
+		&out.Difficulty, &out.DurationMinutes, &out.CreatedAt, &out.UpdatedAt,
 	)
 	if err != nil {
 		return domain.Course{}, fmt.Errorf("create course: %w", err)
@@ -162,13 +168,14 @@ func (r *PostgresCatalogRepository) Update(ctx context.Context, c domain.Course)
 	var out domain.Course
 	err := r.db.QueryRowContext(ctx,
 		`UPDATE courses
-		 SET title = $1, description = $2, subject = $3, price = $4, currency = $5, status = $6, updated_at = now()
-		 WHERE id = $7
-		 RETURNING id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at`,
-		c.Title, c.Description, c.Subject, c.Price, c.Currency, c.Status, c.ID,
+		 SET title = $1, description = $2, subject = $3, price = $4, currency = $5, status = $6,
+		     difficulty = $7, duration_minutes = $8, updated_at = now()
+		 WHERE id = $9
+		 RETURNING id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at`,
+		c.Title, c.Description, c.Subject, c.Price, c.Currency, c.Status, c.Difficulty, c.DurationMinutes, c.ID,
 	).Scan(
-		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject,
-		&out.Price, &out.Currency, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+		&out.ID, &out.TeacherID, &out.Title, &out.Description, &out.Subject, &out.Price, &out.Currency, &out.Status,
+		&out.Difficulty, &out.DurationMinutes, &out.CreatedAt, &out.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Course{}, domain.ErrCourseNotFound
@@ -177,6 +184,37 @@ func (r *PostgresCatalogRepository) Update(ctx context.Context, c domain.Course)
 		return domain.Course{}, fmt.Errorf("update course: %w", err)
 	}
 	return out, nil
+}
+
+// GetExternalCourseID returns the practicum-team course ID this course has
+// been mirrored to, if any.
+func (r *PostgresCatalogRepository) GetExternalCourseID(ctx context.Context, courseID string) (string, bool, error) {
+	var externalID sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT external_course_id FROM courses WHERE id = $1`, courseID,
+	).Scan(&externalID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, domain.ErrCourseNotFound
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("get external course id: %w", err)
+	}
+	return externalID.String, externalID.Valid, nil
+}
+
+// SetExternalCourseID records the practicum-team course ID a mirror was
+// created under.
+func (r *PostgresCatalogRepository) SetExternalCourseID(ctx context.Context, courseID, externalID string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE courses SET external_course_id = $1 WHERE id = $2`, externalID, courseID,
+	)
+	if err != nil {
+		return fmt.Errorf("set external course id: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrCourseNotFound
+	}
+	return nil
 }
 
 // Delete removes a course. Lessons/media/materials cascade via their FKs.
@@ -195,10 +233,13 @@ func (r *PostgresCatalogRepository) Delete(ctx context.Context, id string) error
 func (r *PostgresCatalogRepository) GetByID(ctx context.Context, id string) (domain.Course, error) {
 	var c domain.Course
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, teacher_id, title, description, subject, price, currency, status, created_at, updated_at
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at
 		 FROM courses WHERE id = $1`,
 		id,
-	).Scan(&c.ID, &c.TeacherID, &c.Title, &c.Description, &c.Subject, &c.Price, &c.Currency, &c.Status, &c.CreatedAt, &c.UpdatedAt)
+	).Scan(
+		&c.ID, &c.TeacherID, &c.Title, &c.Description, &c.Subject, &c.Price, &c.Currency, &c.Status,
+		&c.Difficulty, &c.DurationMinutes, &c.CreatedAt, &c.UpdatedAt,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Course{}, domain.ErrCourseNotFound
 	}

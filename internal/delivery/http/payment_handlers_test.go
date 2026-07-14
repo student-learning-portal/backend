@@ -87,6 +87,14 @@ func (s *paymentStubCatRepo) Update(_ context.Context, course domain.Course) (do
 
 func (s *paymentStubCatRepo) Delete(_ context.Context, _ string) error { return nil }
 
+func (s *paymentStubCatRepo) GetExternalCourseID(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (s *paymentStubCatRepo) SetExternalCourseID(_ context.Context, _, _ string) error {
+	return nil
+}
+
 // paymentStubUserRepo implements domain.UserRepository for payment handler tests.
 type paymentStubUserRepo struct {
 	balance   float64

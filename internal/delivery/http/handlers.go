@@ -80,6 +80,7 @@ func (h *CatalogHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	search := queryParams.Get("search")
 	subject := queryParams.Get("subject")
+	difficulty := queryParams.Get("difficulty")
 
 	var minPrice, maxPrice *float64
 	if v := queryParams.Get("min_price"); v != "" {
@@ -113,14 +114,15 @@ func (h *CatalogHandler) GetCourses(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch filtered list from usecase layer
 	courses := h.catalogUseCase.ListCourses(domain.CourseListParams{
-		Search:    search,
-		Subject:   subject,
-		MinPrice:  minPrice,
-		MaxPrice:  maxPrice,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
-		Page:      page,
-		PageSize:  pageSize,
+		Search:     search,
+		Subject:    subject,
+		Difficulty: difficulty,
+		MinPrice:   minPrice,
+		MaxPrice:   maxPrice,
+		SortBy:     sortBy,
+		SortOrder:  sortOrder,
+		Page:       page,
+		PageSize:   pageSize,
 	})
 
 	// Respond with JSON

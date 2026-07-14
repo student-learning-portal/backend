@@ -13,7 +13,7 @@ This is the backend service for the Student Learning Portal, built with Go, Open
 - `cmd/portal/main.go`: The main entry point to start the HTTP server.
 - `cmd/analytics-loader/main.go`: Standalone binary that (re)computes the `analytics_student_course` rollup; see `analytics-ml-layer.md`.
 - `configs/config.env`: Environment variables and secrets.
-- `internal/`: Application code (`domain`, `usecase`, `database`, `delivery/http`, `security`, `logging`, `eventlog`).
+- `internal/`: Application code (`domain`, `usecase`, `database`, `delivery/http`, `security`, `logging`, `eventlog`, `practicum` — the course rating/review integration, see below).
 - `api/openapi.yaml`: The OpenAPI/Swagger contract. `internal/delivery/http/router.go` hand-registers every route; the `api_types.gen.go` / `api_server.gen.go` files generated from this spec (see step 5 below) provide request/response types but their `ServerInterface` is **not** wired into the router — the hand-written mux is the actual source of truth for what's reachable.
 - `migrations/`: Database schema migrations.
 - `tools/sqlc/`: SQL queries for `sqlc` to generate database access code.
@@ -174,6 +174,8 @@ registered in `internal/delivery/http/router.go`:
 | `GET /api/v1/health/db` | — | DB connectivity check |
 | `GET /api/v1/catalog/courses` | — | Search/filter/sort/paginate published courses |
 | `GET /api/v1/catalog/courses/{course_id}/lessons` | — | Lessons for a published course |
+| `GET /api/v1/catalog/courses/{course_id}/rating` | — | Aggregate rating, proxied to the practicum-team service (see below) |
+| `POST /api/v1/catalog/courses/{course_id}/comments` | JWT (student) | Leave a review, proxied to the practicum-team service (see below) |
 | `POST /api/v1/auth/register` | — | Create account, returns JWT |
 | `POST /api/v1/auth/login` | — | Returns JWT |
 | `GET /api/v1/auth/me` | JWT | Caller's profile |
@@ -295,6 +297,42 @@ Inspect the Postgres load with:
 ```sql
 SELECT event_name, actor_id, course_id, payload FROM event_log ORDER BY event_ts DESC LIMIT 20;
 ```
+
+## Course Ratings & Reviews (practicum-team integration)
+
+`GET /api/v1/catalog/courses/{course_id}/rating` and
+`POST /api/v1/catalog/courses/{course_id}/comments` do not store anything in
+our own database. They proxy to a separate team's already-running course
+service (codename "SEHRIYO", `gitlab.pg.innopolis.university/practicum-team`)
+rather than reimplementing their enrollment/progress-gated review logic —
+see `internal/practicum`.
+
+Because the two systems have completely independent Postgres databases with
+independently-generated course IDs, a course is **mirrored** into their
+system lazily, on the first rating/comment request for it
+(`internal/practicum/review_repository.go`'s `ensureExternalCourse`); the
+returned foreign ID is cached on our own `courses.external_course_id`
+column (migration `000010`) so later requests don't mirror again.
+
+### Setup
+
+| Variable | Meaning |
+|---|---|
+| `PRACTICUM_API_URL` | Base URL of their API, e.g. `http://10.93.27.25:8000/api/v1`. |
+| `PRACTICUM_JWT_SECRET` | Must equal *their* service's own `JWT_SECRET` — trust between the two independently-deployed services is a plain shared HMAC secret (their `pkg/jwt`), not our own session secret. |
+| `PRACTICUM_INTEGRATION_TEACHER_ID` | A teacher account ID that already exists in *their* `teachers` table. Every mirrored course is created under this identity (their `POST /create-courses` requires teacher auth and FKs `teacher_id` to a real row) — register one once via their `POST /auth/register_teacher`, then set this to the returned `id`. |
+
+Authentication between the two services works because
+`internal/security`'s JWT now includes a `user_id` claim (in addition to the
+standard `sub`) — that's the exact claim shape their `pkg/jwt.Claims`
+expects, so a token minted by either service (given the shared secret) is
+valid on both.
+
+**Known limitation:** as of this writing the review/rating feature exists in
+their repository but the instance at `10.93.27.25` predates it (its rating
+endpoint 404s with a plain-text response, not their JSON error envelope) —
+confirm with the practicum team that it's deployed before relying on this
+integration.
 
 ## User Protection
 

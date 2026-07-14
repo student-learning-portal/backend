@@ -39,6 +39,14 @@ func (c *catalogHandlerRepo) Update(_ context.Context, course domain.Course) (do
 
 func (c *catalogHandlerRepo) Delete(_ context.Context, _ string) error { return nil }
 
+func (c *catalogHandlerRepo) GetExternalCourseID(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (c *catalogHandlerRepo) SetExternalCourseID(_ context.Context, _, _ string) error {
+	return nil
+}
+
 // --- HelloHandler ---
 
 func TestHelloHandler_ReturnsHelloWorld(t *testing.T) {
@@ -186,3 +194,11 @@ func (p *paramCaptureCatalogRepo) Update(_ context.Context, c domain.Course) (do
 }
 
 func (p *paramCaptureCatalogRepo) Delete(_ context.Context, _ string) error { return nil }
+
+func (p *paramCaptureCatalogRepo) GetExternalCourseID(_ context.Context, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (p *paramCaptureCatalogRepo) SetExternalCourseID(_ context.Context, _, _ string) error {
+	return nil
+}

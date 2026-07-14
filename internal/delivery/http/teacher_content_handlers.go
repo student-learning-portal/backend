@@ -106,12 +106,14 @@ func writeCourseUseCaseError(w http.ResponseWriter, err error, notFoundMsg strin
 }
 
 type courseRequest struct {
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Subject     string  `json:"subject"`
-	Price       float64 `json:"price"`
-	Currency    string  `json:"currency"`
-	Status      string  `json:"status"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	Subject         string  `json:"subject"`
+	Price           float64 `json:"price"`
+	Currency        string  `json:"currency"`
+	Status          string  `json:"status"`
+	Difficulty      string  `json:"difficulty"`
+	DurationMinutes int     `json:"duration_minutes"`
 }
 
 // CreateCourse handles POST /api/v1/teacher/courses.
@@ -128,11 +130,13 @@ func (h *TeacherContentHandler) CreateCourse(w http.ResponseWriter, r *http.Requ
 	}
 
 	course, err := h.catalogUseCase.CreateCourse(r.Context(), claims.UserID, usecase.CourseInput{
-		Title:       req.Title,
-		Description: req.Description,
-		Subject:     req.Subject,
-		Price:       req.Price,
-		Currency:    req.Currency,
+		Title:           req.Title,
+		Description:     req.Description,
+		Subject:         req.Subject,
+		Price:           req.Price,
+		Currency:        req.Currency,
+		Difficulty:      domain.DifficultyLevel(req.Difficulty),
+		DurationMinutes: req.DurationMinutes,
 	})
 	if err != nil {
 		writeCourseUseCaseError(w, err, "failed to create course")
@@ -156,11 +160,13 @@ func (h *TeacherContentHandler) UpdateCourse(w http.ResponseWriter, r *http.Requ
 	}
 
 	course, err := h.catalogUseCase.UpdateCourse(r.Context(), claims.UserID, courseID, usecase.CourseInput{
-		Title:       req.Title,
-		Description: req.Description,
-		Subject:     req.Subject,
-		Price:       req.Price,
-		Currency:    req.Currency,
+		Title:           req.Title,
+		Description:     req.Description,
+		Subject:         req.Subject,
+		Price:           req.Price,
+		Currency:        req.Currency,
+		Difficulty:      domain.DifficultyLevel(req.Difficulty),
+		DurationMinutes: req.DurationMinutes,
 	}, req.Status)
 	if err != nil {
 		writeCourseUseCaseError(w, err, "failed to update course")
