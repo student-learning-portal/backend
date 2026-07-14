@@ -1,8 +1,10 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,7 +28,7 @@ func teacherRequest(method, body string, claims domain.Claims) *http.Request {
 }
 
 func newTeacherContentHandler(catalog domain.CatalogRepository, lessons domain.LessonRepository) *TeacherContentHandler {
-	return NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons))
+	return NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons), "")
 }
 
 func TestCreateCourse_RejectsNonTeacher(t *testing.T) {
@@ -203,5 +205,134 @@ func TestDeleteMaterial_Success(t *testing.T) {
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("status = %d, want 204; body=%s", w.Code, w.Body.String())
+	}
+}
+
+// multipartUploadRequest builds a POST request with a single "file" form part
+// (plus any extra string fields) and the teacher-content path values, mirroring
+// teacherRequest but for multipart/form-data instead of JSON.
+func multipartUploadRequest(t *testing.T, claims domain.Claims, content []byte, filename string, extraFields map[string]string) *http.Request {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	for k, v := range extraFields {
+		if err := mw.WriteField(k, v); err != nil {
+			t.Fatalf("write field %q: %v", k, err)
+		}
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	r := httptest.NewRequest(http.MethodPost, "http://x/", &buf)
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+	r = r.WithContext(context.WithValue(r.Context(), claimsContextKey, claims))
+	r.SetPathValue(keyCourseID, testCourseID)
+	// A real UUID, unlike the plain testLessonID string elsewhere in this
+	// file — the upload handlers validate lesson_id as a UUID before using
+	// it in a filesystem path (path traversal guard).
+	r.SetPathValue(keyLessonID, testLessonUUID)
+	return r
+}
+
+const testLessonUUID = "11111111-1111-1111-1111-111111111111"
+
+// mp4Content is a minimal ISO base media file "ftyp" box that
+// http.DetectContentType recognizes as "video/mp4" — just enough to exercise
+// the MIME sniff, not a playable file.
+var mp4Content = []byte{
+	0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'i', 's', 'o', 'm', 0, 0, 0, 0, 'i', 's', 'o', 'm', 'm', 'p', '4', '2',
+}
+
+func TestUploadLessonMedia_Success(t *testing.T) {
+	catalog := &paymentStubCatRepo{course: domain.Course{ID: testCourseID, TeacherID: testTeacherID}}
+	lessons := &stubLessonRepo{lesson: domain.Lesson{ID: testLessonUUID, CourseID: testCourseID}}
+	h := NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons), t.TempDir())
+
+	w := httptest.NewRecorder()
+	r := multipartUploadRequest(t, domain.Claims{UserID: testTeacherID, Role: domain.RoleTeacher},
+		mp4Content, "lecture.mp4", map[string]string{"duration_seconds": "120"})
+	h.UploadLessonMedia(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp mediaDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.MediaType != "video" || resp.DurationSeconds != 120 {
+		t.Errorf("resp = %+v, want media_type=video duration_seconds=120", resp)
+	}
+	if !strings.HasPrefix(resp.URL, "/uploads/lessons/"+testLessonUUID+"/") {
+		t.Errorf("URL = %q, want prefix /uploads/lessons/%s/", resp.URL, testLessonUUID)
+	}
+}
+
+func TestUploadLessonMedia_RejectsUnsupportedType(t *testing.T) {
+	catalog := &paymentStubCatRepo{course: domain.Course{ID: testCourseID, TeacherID: testTeacherID}}
+	lessons := &stubLessonRepo{lesson: domain.Lesson{ID: testLessonUUID, CourseID: testCourseID}}
+	h := NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons), t.TempDir())
+
+	w := httptest.NewRecorder()
+	r := multipartUploadRequest(t, domain.Claims{UserID: testTeacherID, Role: domain.RoleTeacher},
+		[]byte("plain text, not a media file"), "notes.txt", nil)
+	h.UploadLessonMedia(w, r)
+
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("status = %d, want 415; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestUploadMaterial_Success(t *testing.T) {
+	catalog := &paymentStubCatRepo{course: domain.Course{ID: testCourseID, TeacherID: testTeacherID}}
+	lessons := &stubLessonRepo{lesson: domain.Lesson{ID: testLessonUUID, CourseID: testCourseID}}
+	h := NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons), t.TempDir())
+
+	pdfContent := []byte("%PDF-1.4 minimal fake pdf content for MIME sniffing")
+	w := httptest.NewRecorder()
+	r := multipartUploadRequest(t, domain.Claims{UserID: testTeacherID, Role: domain.RoleTeacher},
+		pdfContent, "slides.pdf", map[string]string{"title": "Lecture Slides"})
+	h.UploadMaterial(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
+	}
+	var resp materialResponseDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Title != "Lecture Slides" || resp.Type != "pdf" {
+		t.Errorf("resp = %+v, want title=%q type=pdf", resp, "Lecture Slides")
+	}
+}
+
+func TestUploadMaterial_DefaultsTitleToFilename(t *testing.T) {
+	catalog := &paymentStubCatRepo{course: domain.Course{ID: testCourseID, TeacherID: testTeacherID}}
+	lessons := &stubLessonRepo{lesson: domain.Lesson{ID: testLessonUUID, CourseID: testCourseID}}
+	h := NewTeacherContentHandler(usecase.NewCatalogUseCase(catalog, lessons), t.TempDir())
+
+	pdfContent := []byte("%PDF-1.4 minimal fake pdf content for MIME sniffing")
+	w := httptest.NewRecorder()
+	r := multipartUploadRequest(t, domain.Claims{UserID: testTeacherID, Role: domain.RoleTeacher},
+		pdfContent, "handout.pdf", nil)
+	h.UploadMaterial(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
+	}
+	var resp materialResponseDTO
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Title != "handout.pdf" {
+		t.Errorf("Title = %q, want handout.pdf (fallback to filename)", resp.Title)
 	}
 }

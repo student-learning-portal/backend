@@ -535,6 +535,16 @@ type CourseInput struct {
 // CourseInputDifficulty Defaults to "all_levels" when omitted.
 type CourseInputDifficulty string
 
+// CourseRating defines model for CourseRating.
+type CourseRating struct {
+	CourseId  *openapi_types.UUID `json:"course_id,omitempty"`
+	CreatedAt *time.Time          `json:"created_at,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	Score     *int                `json:"score,omitempty"`
+	StudentId *openapi_types.UUID `json:"student_id,omitempty"`
+	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
+}
+
 // CourseResult defines model for CourseResult.
 type CourseResult struct {
 	CourseId         *string `json:"course_id,omitempty"`
@@ -641,6 +651,12 @@ type Progress struct {
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
 }
 
+// RatingSummary Aggregate always computed from the underlying rating rows (AVG/COUNT), never stored directly.
+type RatingSummary struct {
+	AverageScore *float32 `json:"average_score,omitempty"`
+	RatingsCount *int     `json:"ratings_count,omitempty"`
+}
+
 // SendMessage defines model for SendMessage.
 type SendMessage struct {
 	// Body Message text (whitespace-only is rejected).
@@ -702,6 +718,16 @@ type TeacherProfile struct {
 
 // TeacherProfileRole defines model for TeacherProfile.Role.
 type TeacherProfileRole string
+
+// TeacherRating defines model for TeacherRating.
+type TeacherRating struct {
+	CreatedAt *time.Time          `json:"created_at,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	Score     *int                `json:"score,omitempty"`
+	StudentId *openapi_types.UUID `json:"student_id,omitempty"`
+	TeacherId *openapi_types.UUID `json:"teacher_id,omitempty"`
+	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
+}
 
 // ThreadSummary defines model for ThreadSummary.
 type ThreadSummary struct {
@@ -801,6 +827,11 @@ type PostCatalogCoursesCourseIdCommentsJSONBody struct {
 	Text *string `json:"text,omitempty"`
 }
 
+// PostCatalogCoursesCourseIdRatingsJSONBody defines parameters for PostCatalogCoursesCourseIdRatings.
+type PostCatalogCoursesCourseIdRatingsJSONBody struct {
+	Score int `json:"score"`
+}
+
 // PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody defines parameters for PostPlayerCoursesCourseIdLessonsLessonIdProgress.
 type PostPlayerCoursesCourseIdLessonsLessonIdProgressJSONBody struct {
 	// Completed Marks the lesson finished (forces percent_complete to 100).
@@ -869,6 +900,13 @@ type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONBody struct {
 	Url  string  `json:"url"`
 }
 
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUploadMultipartBody defines parameters for PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload.
+type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUploadMultipartBody struct {
+	// File application/pdf, application/zip, image/jpeg, or image/png — max 50 MB
+	File  openapi_types.File `json:"file"`
+	Title *string            `json:"title,omitempty"`
+}
+
 // PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody defines parameters for PutTeacherCoursesCourseIdLessonsLessonIdMedia.
 type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody struct {
 	DurationSeconds *int                                                           `json:"duration_seconds,omitempty"`
@@ -878,6 +916,19 @@ type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody struct {
 
 // PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType defines parameters for PutTeacherCoursesCourseIdLessonsLessonIdMedia.
 type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBodyMediaType string
+
+// PostTeacherCoursesCourseIdLessonsLessonIdMediaUploadMultipartBody defines parameters for PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload.
+type PostTeacherCoursesCourseIdLessonsLessonIdMediaUploadMultipartBody struct {
+	DurationSeconds *int `json:"duration_seconds,omitempty"`
+
+	// File video/mp4, video/webm, audio/mpeg, audio/wav, or audio/ogg — max 500 MB
+	File openapi_types.File `json:"file"`
+}
+
+// PostTeachersTeacherIdRatingsJSONBody defines parameters for PostTeachersTeacherIdRatings.
+type PostTeachersTeacherIdRatingsJSONBody struct {
+	Score int `json:"score"`
+}
 
 // PostUsersMeAvatarMultipartBody defines parameters for PostUsersMeAvatar.
 type PostUsersMeAvatarMultipartBody struct {
@@ -909,6 +960,9 @@ type PostAuthRegisterJSONRequestBody PostAuthRegisterJSONBody
 
 // PostCatalogCoursesCourseIdCommentsJSONRequestBody defines body for PostCatalogCoursesCourseIdComments for application/json ContentType.
 type PostCatalogCoursesCourseIdCommentsJSONRequestBody PostCatalogCoursesCourseIdCommentsJSONBody
+
+// PostCatalogCoursesCourseIdRatingsJSONRequestBody defines body for PostCatalogCoursesCourseIdRatings for application/json ContentType.
+type PostCatalogCoursesCourseIdRatingsJSONRequestBody PostCatalogCoursesCourseIdRatingsJSONBody
 
 // PostCoursesCourseIdMessagesJSONRequestBody defines body for PostCoursesCourseIdMessages for application/json ContentType.
 type PostCoursesCourseIdMessagesJSONRequestBody = SendMessage
@@ -943,11 +997,20 @@ type PatchTeacherCoursesCourseIdLessonsLessonIdJSONRequestBody = LessonInput
 // PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONRequestBody defines body for PostTeacherCoursesCourseIdLessonsLessonIdMaterials for application/json ContentType.
 type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONRequestBody PostTeacherCoursesCourseIdLessonsLessonIdMaterialsJSONBody
 
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUploadMultipartRequestBody defines body for PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload for multipart/form-data ContentType.
+type PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUploadMultipartRequestBody PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUploadMultipartBody
+
 // PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody defines body for PutTeacherCoursesCourseIdLessonsLessonIdMedia for application/json ContentType.
 type PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONRequestBody PutTeacherCoursesCourseIdLessonsLessonIdMediaJSONBody
 
+// PostTeacherCoursesCourseIdLessonsLessonIdMediaUploadMultipartRequestBody defines body for PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload for multipart/form-data ContentType.
+type PostTeacherCoursesCourseIdLessonsLessonIdMediaUploadMultipartRequestBody PostTeacherCoursesCourseIdLessonsLessonIdMediaUploadMultipartBody
+
 // PostTeacherCoursesCourseIdThreadsStudentIdMessagesJSONRequestBody defines body for PostTeacherCoursesCourseIdThreadsStudentIdMessages for application/json ContentType.
 type PostTeacherCoursesCourseIdThreadsStudentIdMessagesJSONRequestBody = SendMessage
+
+// PostTeachersTeacherIdRatingsJSONRequestBody defines body for PostTeachersTeacherIdRatings for application/json ContentType.
+type PostTeachersTeacherIdRatingsJSONRequestBody PostTeachersTeacherIdRatingsJSONBody
 
 // PostUsersMeAvatarMultipartRequestBody defines body for PostUsersMeAvatar for multipart/form-data ContentType.
 type PostUsersMeAvatarMultipartRequestBody PostUsersMeAvatarMultipartBody

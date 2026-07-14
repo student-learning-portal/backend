@@ -44,6 +44,15 @@ type ServerInterface interface {
 	// A course's aggregate rating
 	// (GET /catalog/courses/{course_id}/rating)
 	GetCatalogCoursesCourseIdRating(w http.ResponseWriter, r *http.Request, courseId openapi_types.UUID)
+	// A course's aggregate 1-10 rating
+	// (GET /catalog/courses/{course_id}/ratings)
+	GetCatalogCoursesCourseIdRatings(w http.ResponseWriter, r *http.Request, courseId openapi_types.UUID)
+	// Rate a course on a 1-10 scale
+	// (POST /catalog/courses/{course_id}/ratings)
+	PostCatalogCoursesCourseIdRatings(w http.ResponseWriter, r *http.Request, courseId openapi_types.UUID)
+	// The caller's own rating for a course
+	// (GET /catalog/courses/{course_id}/ratings/me)
+	GetCatalogCoursesCourseIdRatingsMe(w http.ResponseWriter, r *http.Request, courseId openapi_types.UUID)
 	// The calling student's conversation with the course's teacher
 	// (GET /courses/{course_id}/messages)
 	GetCoursesCourseIdMessages(w http.ResponseWriter, r *http.Request, courseId string)
@@ -101,6 +110,9 @@ type ServerInterface interface {
 	// Attach a downloadable material to a lesson
 	// (POST /teacher/courses/{course_id}/lessons/{lesson_id}/materials)
 	PostTeacherCoursesCourseIdLessonsLessonIdMaterials(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Upload a downloadable material as a file
+	// (POST /teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload)
+	PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload(w http.ResponseWriter, r *http.Request, courseId string, lessonId openapi_types.UUID)
 	// Remove a single material from a lesson
 	// (DELETE /teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id})
 	DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId(w http.ResponseWriter, r *http.Request, courseId string, lessonId string, materialId string)
@@ -110,6 +122,9 @@ type ServerInterface interface {
 	// Replace a lesson's playable media asset
 	// (PUT /teacher/courses/{course_id}/lessons/{lesson_id}/media)
 	PutTeacherCoursesCourseIdLessonsLessonIdMedia(w http.ResponseWriter, r *http.Request, courseId string, lessonId string)
+	// Upload a lesson's playable media asset as a file
+	// (POST /teacher/courses/{course_id}/lessons/{lesson_id}/media/upload)
+	PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload(w http.ResponseWriter, r *http.Request, courseId string, lessonId openapi_types.UUID)
 	// The owning teacher's inbox of student conversations
 	// (GET /teacher/courses/{course_id}/threads)
 	GetTeacherCoursesCourseIdThreads(w http.ResponseWriter, r *http.Request, courseId string)
@@ -122,6 +137,15 @@ type ServerInterface interface {
 	// Get a teacher's public profile
 	// (GET /teachers/{teacher_id})
 	GetTeachersTeacherId(w http.ResponseWriter, r *http.Request, teacherId openapi_types.UUID)
+	// A teacher's aggregate 1-10 rating
+	// (GET /teachers/{teacher_id}/ratings)
+	GetTeachersTeacherIdRatings(w http.ResponseWriter, r *http.Request, teacherId openapi_types.UUID)
+	// Rate a teacher on a 1-10 scale
+	// (POST /teachers/{teacher_id}/ratings)
+	PostTeachersTeacherIdRatings(w http.ResponseWriter, r *http.Request, teacherId openapi_types.UUID)
+	// The caller's own rating for a teacher
+	// (GET /teachers/{teacher_id}/ratings/me)
+	GetTeachersTeacherIdRatingsMe(w http.ResponseWriter, r *http.Request, teacherId openapi_types.UUID)
 	// Upload a profile picture
 	// (POST /users/me/avatar)
 	PostUsersMeAvatar(w http.ResponseWriter, r *http.Request)
@@ -470,6 +494,96 @@ func (siw *ServerInterfaceWrapper) GetCatalogCoursesCourseIdRating(w http.Respon
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCatalogCoursesCourseIdRating(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCatalogCoursesCourseIdRatings operation middleware
+func (siw *ServerInterfaceWrapper) GetCatalogCoursesCourseIdRatings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCatalogCoursesCourseIdRatings(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCatalogCoursesCourseIdRatings operation middleware
+func (siw *ServerInterfaceWrapper) PostCatalogCoursesCourseIdRatings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCatalogCoursesCourseIdRatings(w, r, courseId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCatalogCoursesCourseIdRatingsMe operation middleware
+func (siw *ServerInterfaceWrapper) GetCatalogCoursesCourseIdRatingsMe(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCatalogCoursesCourseIdRatingsMe(w, r, courseId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1039,6 +1153,47 @@ func (siw *ServerInterfaceWrapper) PostTeacherCoursesCourseIdLessonsLessonIdMate
 	handler.ServeHTTP(w, r)
 }
 
+// PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload operation middleware
+func (siw *ServerInterfaceWrapper) PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId(w http.ResponseWriter, r *http.Request) {
 
@@ -1162,6 +1317,47 @@ func (siw *ServerInterfaceWrapper) PutTeacherCoursesCourseIdLessonsLessonIdMedia
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutTeacherCoursesCourseIdLessonsLessonIdMedia(w, r, courseId, lessonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload operation middleware
+func (siw *ServerInterfaceWrapper) PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "course_id" -------------
+	var courseId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "course_id", r.PathValue("course_id"), &courseId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "course_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "lesson_id" -------------
+	var lessonId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "lesson_id", r.PathValue("lesson_id"), &lessonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lesson_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload(w, r, courseId, lessonId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1302,6 +1498,96 @@ func (siw *ServerInterfaceWrapper) GetTeachersTeacherId(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTeachersTeacherId(w, r, teacherId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTeachersTeacherIdRatings operation middleware
+func (siw *ServerInterfaceWrapper) GetTeachersTeacherIdRatings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teacher_id" -------------
+	var teacherId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teacher_id", r.PathValue("teacher_id"), &teacherId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "teacher_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTeachersTeacherIdRatings(w, r, teacherId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostTeachersTeacherIdRatings operation middleware
+func (siw *ServerInterfaceWrapper) PostTeachersTeacherIdRatings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teacher_id" -------------
+	var teacherId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teacher_id", r.PathValue("teacher_id"), &teacherId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "teacher_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostTeachersTeacherIdRatings(w, r, teacherId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTeachersTeacherIdRatingsMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTeachersTeacherIdRatingsMe(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "teacher_id" -------------
+	var teacherId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "teacher_id", r.PathValue("teacher_id"), &teacherId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "teacher_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTeachersTeacherIdRatingsMe(w, r, teacherId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1560,6 +1846,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/catalog/courses/{course_id}/comments", wrapper.PostCatalogCoursesCourseIdComments)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses/{course_id}/lessons", wrapper.GetCatalogCoursesCourseIdLessons)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses/{course_id}/rating", wrapper.GetCatalogCoursesCourseIdRating)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses/{course_id}/ratings", wrapper.GetCatalogCoursesCourseIdRatings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/catalog/courses/{course_id}/ratings", wrapper.PostCatalogCoursesCourseIdRatings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/catalog/courses/{course_id}/ratings/me", wrapper.GetCatalogCoursesCourseIdRatingsMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/courses/{course_id}/messages", wrapper.GetCoursesCourseIdMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/courses/{course_id}/messages", wrapper.PostCoursesCourseIdMessages)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health/db", wrapper.GetHealthDb)
@@ -1579,13 +1868,18 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonId)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}", wrapper.PatchTeacherCoursesCourseIdLessonsLessonId)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/materials", wrapper.PostTeacherCoursesCourseIdLessonsLessonIdMaterials)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload", wrapper.PostTeacherCoursesCourseIdLessonsLessonIdMaterialsUpload)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonIdMaterialsMaterialId)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/media", wrapper.DeleteTeacherCoursesCourseIdLessonsLessonIdMedia)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/media", wrapper.PutTeacherCoursesCourseIdLessonsLessonIdMedia)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/lessons/{lesson_id}/media/upload", wrapper.PostTeacherCoursesCourseIdLessonsLessonIdMediaUpload)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teacher/courses/{course_id}/threads", wrapper.GetTeacherCoursesCourseIdThreads)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teacher/courses/{course_id}/threads/{student_id}/messages", wrapper.GetTeacherCoursesCourseIdThreadsStudentIdMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teacher/courses/{course_id}/threads/{student_id}/messages", wrapper.PostTeacherCoursesCourseIdThreadsStudentIdMessages)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teachers/{teacher_id}", wrapper.GetTeachersTeacherId)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teachers/{teacher_id}/ratings", wrapper.GetTeachersTeacherIdRatings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/teachers/{teacher_id}/ratings", wrapper.PostTeachersTeacherIdRatings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/teachers/{teacher_id}/ratings/me", wrapper.GetTeachersTeacherIdRatingsMe)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/users/me/avatar", wrapper.PostUsersMeAvatar)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/me/courses", wrapper.GetUsersMeCourses)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/users/me/email", wrapper.PatchUsersMeEmail)
