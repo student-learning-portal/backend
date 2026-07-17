@@ -247,6 +247,40 @@ func (r *PostgresLessonRepository) DeleteMaterial(ctx context.Context, lessonID,
 	return nil
 }
 
+// FindByExternalID looks up a lesson previously imported from the practicum
+// team's service by their lesson id, used to make the import command
+// idempotent on re-runs.
+func (r *PostgresLessonRepository) FindByExternalID(ctx context.Context, externalLessonID string) (domain.Lesson, bool, error) {
+	var l domain.Lesson
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, course_id, title, lesson_type, position, created_at, updated_at
+		 FROM lessons WHERE external_lesson_id = $1`,
+		externalLessonID,
+	).Scan(&l.ID, &l.CourseID, &l.Title, &l.Type, &l.Position, &l.CreatedAt, &l.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Lesson{}, false, nil
+	}
+	if err != nil {
+		return domain.Lesson{}, false, fmt.Errorf("find lesson by external id: %w", err)
+	}
+	return l, true, nil
+}
+
+// SetExternalLessonID records the practicum-team lesson id a lesson was
+// imported from.
+func (r *PostgresLessonRepository) SetExternalLessonID(ctx context.Context, lessonID, externalID string) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE lessons SET external_lesson_id = $1 WHERE id = $2`, externalID, lessonID,
+	)
+	if err != nil {
+		return fmt.Errorf("set external lesson id: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrLessonNotFound
+	}
+	return nil
+}
+
 func (r *PostgresLessonRepository) GetLessonMaterials(ctx context.Context, lessonID string) ([]domain.Material, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, lesson_id, title, url, material_type

@@ -49,6 +49,10 @@ func (f *fakeCatalog) SetExternalCourseID(_ context.Context, _, externalID strin
 	return nil
 }
 
+func (f *fakeCatalog) FindByExternalCourseID(context.Context, string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 func TestEnsureExternalCourse_MirrorsOnlyOnce(t *testing.T) {
 	var createCalls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -83,4 +83,10 @@ type CatalogRepository interface {
 	// SetExternalCourseID records the practicum-team course ID a mirror was
 	// created under, so future requests reuse it instead of mirroring again.
 	SetExternalCourseID(ctx context.Context, courseID, externalID string) error
+
+	// FindByExternalCourseID looks up a course by the reverse direction of the
+	// external_course_id link: given the practicum team's own course id, find
+	// the local course it was imported as (see the import use case in
+	// internal/usecase). ok is false if no course has that external id.
+	FindByExternalCourseID(ctx context.Context, externalID string) (Course, bool, error)
 }

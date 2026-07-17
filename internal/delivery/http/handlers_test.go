@@ -47,6 +47,10 @@ func (c *catalogHandlerRepo) SetExternalCourseID(_ context.Context, _, _ string)
 	return nil
 }
 
+func (c *catalogHandlerRepo) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 // --- HelloHandler ---
 
 func TestHelloHandler_ReturnsHelloWorld(t *testing.T) {
@@ -201,4 +205,8 @@ func (p *paramCaptureCatalogRepo) GetExternalCourseID(_ context.Context, _ strin
 
 func (p *paramCaptureCatalogRepo) SetExternalCourseID(_ context.Context, _, _ string) error {
 	return nil
+}
+
+func (p *paramCaptureCatalogRepo) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
 }

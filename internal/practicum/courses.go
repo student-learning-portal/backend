@@ -92,3 +92,83 @@ func (c *Client) getCourseRating(ctx context.Context, externalCourseID string) (
 	err := c.do(ctx, http.MethodGet, "/courses/"+externalCourseID+"/rating", "", nil, &out)
 	return out, err
 }
+
+// remoteCourse / courseListResponse match their GET /courses (public,
+// published-only) response exactly.
+type remoteCourse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Subject     string `json:"subject"`
+	Description string `json:"description"`
+	Duration    int    `json:"duration"`
+	Price       int    `json:"price"`
+	Difficulty  string `json:"difficulty"`
+}
+
+type courseListResponse struct {
+	Courses []remoteCourse `json:"courses"`
+}
+
+// listCourses fetches every published course on their service. Public —
+// no token required.
+func (c *Client) listCourses(ctx context.Context) ([]remoteCourse, error) {
+	var out courseListResponse
+	err := c.do(ctx, http.MethodGet, "/courses", "", nil, &out)
+	return out.Courses, err
+}
+
+// remoteLesson / lessonListResponse match their GET /courses/{id}/lessons
+// (public, published-only when no token is sent) response exactly. `content`
+// is intentionally not modeled: it's an opaque, per-lesson JSON blob on
+// their side with no fixed schema (their own frontend types it as
+// Record<string, any>) — we only need lesson files (see remoteFile below)
+// for the actual media/materials.
+type remoteLesson struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type lessonListResponse struct {
+	Lessons []remoteLesson `json:"lessons"`
+}
+
+// listLessons fetches the published lessons of a published remote course.
+// Public — no token required.
+func (c *Client) listLessons(ctx context.Context, remoteCourseID string) ([]remoteLesson, error) {
+	var out lessonListResponse
+	err := c.do(ctx, http.MethodGet, "/courses/"+remoteCourseID+"/lessons", "", nil, &out)
+	return out.Lessons, err
+}
+
+// remoteFile / fileListResponse match their GET /lessons/{lesson_id}/files response exactly.
+type remoteFile struct {
+	ID               string `json:"id"`
+	OriginalFilename string `json:"original_filename"`
+	MimeType         string `json:"mime_type"`
+}
+
+type fileListResponse struct {
+	Files []remoteFile `json:"files"`
+}
+
+// listLessonFiles fetches the files attached to a lesson. Requires an
+// authenticated teacher or student (their access check only inspects the
+// JWT's role claim for a published lesson — see importReaderUserID).
+func (c *Client) listLessonFiles(ctx context.Context, remoteLessonID string) ([]remoteFile, error) {
+	token, err := c.mintToken(importReaderUserID, "student")
+	if err != nil {
+		return nil, err
+	}
+	var out fileListResponse
+	err = c.do(ctx, http.MethodGet, "/lessons/"+remoteLessonID+"/files", token, nil, &out)
+	return out.Files, err
+}
+
+// downloadFile streams a file's raw bytes. Same access rule as listLessonFiles.
+func (c *Client) downloadFile(ctx context.Context, remoteFileID string) ([]byte, error) {
+	token, err := c.mintToken(importReaderUserID, "student")
+	if err != nil {
+		return nil, err
+	}
+	return c.getRaw(ctx, "/files/"+remoteFileID+"/download", token)
+}

@@ -67,6 +67,10 @@ func (s *stubCatalogRepo) SetExternalCourseID(_ context.Context, _, _ string) er
 	return nil
 }
 
+func (s *stubCatalogRepo) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 func newAnalyticsHandler(course domain.Course, courseErr error, rows []domain.StudentProgress) *AnalyticsHandler {
 	uc := usecase.NewAnalyticsUseCase(
 		&stubAnalyticsRepo{rows: rows},

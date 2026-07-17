@@ -47,6 +47,10 @@ func (s *stubCatalogRepository) SetExternalCourseID(_ context.Context, _, _ stri
 	return nil
 }
 
+func (s *stubCatalogRepository) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 func TestListCourses_ReturnsCourses(t *testing.T) {
 	repo := &stubCatalogRepository{
 		courses: []domain.Course{{ID: "c1", Title: "Math"}, {ID: "c2", Title: "Science"}},

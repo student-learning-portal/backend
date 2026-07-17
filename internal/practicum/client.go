@@ -155,3 +155,38 @@ func (c *Client) do(ctx context.Context, method, path, token string, body, out a
 }
 
 var errMissingIntegrationTeacher = errors.New("practicum: PRACTICUM_INTEGRATION_TEACHER_ID is not configured")
+
+// importReaderUserID is the (synthetic, never-registered) subject used to
+// mint read-only tokens for the course-import path (internal/usecase's
+// PracticumImportUseCase). Their file-access check only looks at the JWT's
+// role claim — teacher or student — for published lesson content, and never
+// looks the user id up in their database (see pkg/middleware.Auth on their
+// side), so no real account needs to exist on their end for this to work.
+const importReaderUserID = "00000000-0000-0000-0000-000000000000"
+
+// getRaw executes a GET request and returns the raw response body instead of
+// decoding it as JSON, for endpoints that stream a file (downloadFile).
+func (c *Client) getRaw(ctx context.Context, path, token string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("practicum: build request: %w", err)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("practicum: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("practicum: read response: %w", err)
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, mapError(resp.StatusCode, body)
+	}
+	return body, nil
+}

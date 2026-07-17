@@ -217,6 +217,27 @@ func (r *PostgresCatalogRepository) SetExternalCourseID(ctx context.Context, cou
 	return nil
 }
 
+// FindByExternalCourseID looks up a course by the practicum team's course id
+// (the reverse of GetExternalCourseID), used to make course import idempotent.
+func (r *PostgresCatalogRepository) FindByExternalCourseID(ctx context.Context, externalID string) (domain.Course, bool, error) {
+	var c domain.Course
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, teacher_id, title, description, subject, price, currency, status, difficulty, duration_minutes, created_at, updated_at
+		 FROM courses WHERE external_course_id = $1`,
+		externalID,
+	).Scan(
+		&c.ID, &c.TeacherID, &c.Title, &c.Description, &c.Subject, &c.Price, &c.Currency, &c.Status,
+		&c.Difficulty, &c.DurationMinutes, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Course{}, false, nil
+	}
+	if err != nil {
+		return domain.Course{}, false, fmt.Errorf("find course by external id: %w", err)
+	}
+	return c, true, nil
+}
+
 // Delete removes a course. Lessons/media/materials cascade via their FKs.
 // The usecase layer only calls this for draft courses.
 func (r *PostgresCatalogRepository) Delete(ctx context.Context, id string) error {

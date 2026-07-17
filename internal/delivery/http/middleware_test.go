@@ -207,6 +207,10 @@ func (s *middlewareCatalogRepo) SetExternalCourseID(_ context.Context, _, _ stri
 	return nil
 }
 
+func (s *middlewareCatalogRepo) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 // noCourseCatalogRepo is a middlewareCatalogRepo preconfigured to always
 // report the course as not found, so the teacher bypass never fires.
 func noCourseCatalogRepo() *middlewareCatalogRepo {
