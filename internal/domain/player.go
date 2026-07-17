@@ -72,4 +72,13 @@ type LessonRepository interface {
 
 	AddMaterial(ctx context.Context, lessonID, title, url, materialType string) (Material, error)
 	DeleteMaterial(ctx context.Context, lessonID, materialID string) error
+
+	// FindByExternalID looks up a lesson previously imported from the
+	// practicum team's service by their lesson id, so the one-shot import
+	// command (internal/usecase) can skip lessons it already copied over
+	// instead of duplicating them on a re-run. ok is false if none matches.
+	FindByExternalID(ctx context.Context, externalLessonID string) (Lesson, bool, error)
+	// SetExternalLessonID records the practicum-team lesson id a lesson was
+	// imported from.
+	SetExternalLessonID(ctx context.Context, lessonID, externalID string) error
 }

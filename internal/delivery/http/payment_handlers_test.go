@@ -97,6 +97,10 @@ func (s *paymentStubCatRepo) SetExternalCourseID(_ context.Context, _, _ string)
 	return nil
 }
 
+func (s *paymentStubCatRepo) FindByExternalCourseID(_ context.Context, _ string) (domain.Course, bool, error) {
+	return domain.Course{}, false, nil
+}
+
 // paymentStubUserRepo implements domain.UserRepository for payment handler tests.
 type paymentStubUserRepo struct {
 	balance   float64

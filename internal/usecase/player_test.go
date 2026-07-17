@@ -57,6 +57,12 @@ func (f *fakeLessonRepo) AddMaterial(_ context.Context, lessonID, title, url, ma
 
 func (f *fakeLessonRepo) DeleteMaterial(_ context.Context, _, _ string) error { return nil }
 
+func (f *fakeLessonRepo) FindByExternalID(_ context.Context, _ string) (domain.Lesson, bool, error) {
+	return domain.Lesson{}, false, nil
+}
+
+func (f *fakeLessonRepo) SetExternalLessonID(_ context.Context, _, _ string) error { return nil }
+
 // fakeProgressRepo is an in-memory domain.ProgressRepository for tests.
 type fakeProgressRepo struct {
 	store map[string]domain.ProgressState

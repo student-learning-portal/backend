@@ -66,6 +66,12 @@ func (s *stubLessonRepo) AddMaterial(_ context.Context, lessonID, title, url, ma
 
 func (s *stubLessonRepo) DeleteMaterial(_ context.Context, _, _ string) error { return nil }
 
+func (s *stubLessonRepo) FindByExternalID(_ context.Context, _ string) (domain.Lesson, bool, error) {
+	return domain.Lesson{}, false, nil
+}
+
+func (s *stubLessonRepo) SetExternalLessonID(_ context.Context, _, _ string) error { return nil }
+
 type stubProgressRepo struct {
 	store map[string]domain.ProgressState
 }
