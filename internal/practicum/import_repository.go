@@ -80,3 +80,11 @@ func (r *ImportRepository) DownloadRemoteFile(ctx context.Context, remoteFileID 
 	}
 	return data, nil
 }
+
+func (r *ImportRepository) GetRemotePrimaryMediaFileID(ctx context.Context, remoteLessonID string) (string, bool, error) {
+	id, ok, err := r.client.getLessonPrimaryMediaFileID(ctx, remoteLessonID)
+	if err != nil {
+		return "", false, fmt.Errorf("get lesson content: %w", err)
+	}
+	return id, ok, nil
+}

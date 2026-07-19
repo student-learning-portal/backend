@@ -3,6 +3,9 @@ package usecase
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/student-learning-portal/backend/internal/domain"
@@ -10,10 +13,11 @@ import (
 
 // fakeImportRepo implements domain.CourseImportRepository for import tests.
 type fakeImportRepo struct {
-	courses   []domain.RemoteCourse
-	lessons   map[string][]domain.RemoteLesson // keyed by remote course id
-	files     map[string][]domain.RemoteFile   // keyed by remote lesson id
-	fileBytes map[string][]byte                // keyed by remote file id
+	courses        []domain.RemoteCourse
+	lessons        map[string][]domain.RemoteLesson // keyed by remote course id
+	files          map[string][]domain.RemoteFile   // keyed by remote lesson id
+	fileBytes      map[string][]byte                // keyed by remote file id
+	primaryMediaID map[string]string                // keyed by remote lesson id
 }
 
 func (f *fakeImportRepo) ListRemoteCourses(context.Context) ([]domain.RemoteCourse, error) {
@@ -33,6 +37,11 @@ func (f *fakeImportRepo) DownloadRemoteFile(_ context.Context, remoteFileID stri
 		return data, nil
 	}
 	return []byte("data"), nil
+}
+
+func (f *fakeImportRepo) GetRemotePrimaryMediaFileID(_ context.Context, remoteLessonID string) (string, bool, error) {
+	id, ok := f.primaryMediaID[remoteLessonID]
+	return id, ok, nil
 }
 
 // importCatalogRepo is a minimal in-memory domain.CatalogRepository for
@@ -242,6 +251,55 @@ func TestPracticumImportUseCase_ImportAll_CreatesCourseAndLessonsWithMedia(t *te
 	}
 	if len(lessons.materials[quizLesson.ID]) != 0 {
 		t.Errorf("expected no materials on quiz-only lesson, got %+v", lessons.materials[quizLesson.ID])
+	}
+}
+
+func TestPracticumImportUseCase_ImportAll_PrefersContentMediaFileIDOverFirstFile(t *testing.T) {
+	remote := &fakeImportRepo{
+		courses: []domain.RemoteCourse{{ID: "rc1", Title: "Go Basics"}},
+		lessons: map[string][]domain.RemoteLesson{
+			"rc1": {{ID: "rl1", Title: "Intro"}},
+		},
+		files: map[string][]domain.RemoteFile{
+			// f1 (video) comes first in the list, but the lesson's content
+			// names f2 as the primary — f2's bytes must be the ones saved.
+			"rl1": {
+				{ID: "f1", OriginalFilename: "old-take.mp4", MimeType: "video/mp4"},
+				{ID: "f2", OriginalFilename: "final-take.mp4", MimeType: "video/mp4"},
+			},
+		},
+		fileBytes: map[string][]byte{
+			"f1": []byte("old take bytes"),
+			"f2": []byte("final take bytes"),
+		},
+		primaryMediaID: map[string]string{"rl1": "f2"},
+	}
+	catalog := newImportCatalogRepo()
+	lessons := newImportLessonRepo()
+	uploadsDir := t.TempDir()
+
+	uc := NewPracticumImportUseCase(remote, catalog, lessons, uploadsDir)
+	summary, err := uc.ImportAll(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(summary.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", summary.Errors)
+	}
+
+	introLesson := lessons.created[0]
+	media, ok := lessons.media[introLesson.ID]
+	if !ok {
+		t.Fatalf("expected media on intro lesson")
+	}
+
+	savedPath := filepath.Join(uploadsDir, strings.TrimPrefix(media.URL, "/uploads/"))
+	got, err := os.ReadFile(savedPath)
+	if err != nil {
+		t.Fatalf("read saved media file: %v", err)
+	}
+	if string(got) != "final take bytes" {
+		t.Errorf("saved media content = %q, want the content-preferred file (f2)'s bytes", got)
 	}
 }
 

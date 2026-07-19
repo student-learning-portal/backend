@@ -49,4 +49,11 @@ type CourseImportRepository interface {
 	ListRemoteLessonFiles(ctx context.Context, remoteLessonID string) ([]RemoteFile, error)
 	// DownloadRemoteFile fetches a file's raw bytes.
 	DownloadRemoteFile(ctx context.Context, remoteFileID string) ([]byte, error)
+	// GetRemotePrimaryMediaFileID returns the file id their own course
+	// builder recorded as the lesson's primary playable media
+	// (Lesson.content.mediaFileId — a de-facto convention their frontend
+	// relies on, not a server-enforced schema). ok is false when the
+	// lesson's content doesn't have a usable mediaFileId, so callers should
+	// fall back to their own heuristic.
+	GetRemotePrimaryMediaFileID(ctx context.Context, remoteLessonID string) (id string, ok bool, err error)
 }
