@@ -178,8 +178,8 @@ var (
 )
 
 // importLesson creates the lesson, then downloads and attaches its files:
-// the first recognized video/audio file becomes the lesson's single
-// playable media asset (SetLessonMedia only ever keeps one — see
+// the chosen primary file (see choosePrimaryMediaID) becomes the lesson's
+// single playable media asset (SetLessonMedia only ever keeps one — see
 // domain.LessonRepository), every other recognized file becomes a
 // downloadable material. A lesson with no recognized files (e.g. quiz-only
 // content, which our player has no equivalent for) is imported as a plain
@@ -207,9 +207,11 @@ func (uc *PracticumImportUseCase) importLesson(ctx context.Context, courseID str
 		return fmt.Errorf("link external lesson id: %w", err)
 	}
 
+	primaryMediaID := uc.choosePrimaryMediaID(ctx, rl.ID, files)
+
 	haveMedia := false
 	for _, f := range files {
-		if info, ok := mediaMimeInfo[f.MimeType]; ok && !haveMedia {
+		if info, ok := mediaMimeInfo[f.MimeType]; ok && !haveMedia && f.ID == primaryMediaID {
 			if err := uc.copyMedia(ctx, lesson.ID, f, info.ext, info.mediaType); err != nil {
 				return fmt.Errorf("copy media %s: %w", f.ID, err)
 			}
@@ -223,6 +225,34 @@ func (uc *PracticumImportUseCase) importLesson(ctx context.Context, courseID str
 		}
 	}
 	return nil
+}
+
+// choosePrimaryMediaID picks which file becomes the lesson's single playable
+// media asset: the file their own course builder recorded as
+// content.mediaFileId when the lesson was authored (a de-facto convention —
+// see internal/practicum's lessonContent), falling back to the first
+// recognized video/audio file when that hint is missing, doesn't resolve to
+// one of files, or isn't itself a playable type. The remote lookup is
+// best-effort: an error here just falls back to the heuristic instead of
+// failing the whole lesson import over a refinement.
+func (uc *PracticumImportUseCase) choosePrimaryMediaID(ctx context.Context, remoteLessonID string, files []domain.RemoteFile) string {
+	if preferred, ok, err := uc.remote.GetRemotePrimaryMediaFileID(ctx, remoteLessonID); err == nil && ok {
+		for _, f := range files {
+			if f.ID != preferred {
+				continue
+			}
+			if _, isMedia := mediaMimeInfo[f.MimeType]; isMedia {
+				return preferred
+			}
+			break
+		}
+	}
+	for _, f := range files {
+		if _, ok := mediaMimeInfo[f.MimeType]; ok {
+			return f.ID
+		}
+	}
+	return ""
 }
 
 // saveFile downloads-then-writes a file under the same

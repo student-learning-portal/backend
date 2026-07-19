@@ -2,6 +2,7 @@ package practicum
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/student-learning-portal/backend/internal/domain"
@@ -171,4 +172,38 @@ func (c *Client) downloadFile(ctx context.Context, remoteFileID string) ([]byte,
 		return nil, err
 	}
 	return c.getRaw(ctx, "/files/"+remoteFileID+"/download", token)
+}
+
+// remoteLessonDetail matches their GET /lessons/{id} response; content has
+// no server-side schema (their Lesson.Content is json.RawMessage) so we only
+// decode the one field we care about — see lessonContent below.
+type remoteLessonDetail struct {
+	Content json.RawMessage `json:"content"`
+}
+
+// lessonContent is the de-facto shape their own course builder writes into
+// Lesson.content (see practicum-frontend-main's TeacherCourseBuilderPage.tsx,
+// topicToLessonPayload) — not a contract they guarantee, just the convention
+// their UI itself relies on, so a missing or differently-shaped mediaFileId
+// is expected and not an error.
+type lessonContent struct {
+	MediaFileID string `json:"mediaFileId"`
+}
+
+// getLessonPrimaryMediaFileID fetches a lesson's content and picks out
+// mediaFileId. Public — GET /lessons/{id} requires no auth for a published
+// lesson (optionalAuth on their side, see pkg/middleware.OptionalAuth).
+func (c *Client) getLessonPrimaryMediaFileID(ctx context.Context, remoteLessonID string) (string, bool, error) {
+	var out remoteLessonDetail
+	if err := c.do(ctx, http.MethodGet, "/lessons/"+remoteLessonID, "", nil, &out); err != nil {
+		return "", false, err
+	}
+	if len(out.Content) == 0 {
+		return "", false, nil
+	}
+	var lc lessonContent
+	if err := json.Unmarshal(out.Content, &lc); err != nil || lc.MediaFileID == "" {
+		return "", false, nil
+	}
+	return lc.MediaFileID, true, nil
 }

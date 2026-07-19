@@ -24,3 +24,7 @@ jobs:
 
       - name: Restart containers
         run: cd /home/runner/infra && docker compose up -d --build backend
+
+      - name: Import practicum courses
+        continue-on-error: true
+        run: cd /home/runner/infra && docker compose run --rm backend ./import-practicum-courses
