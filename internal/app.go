@@ -78,8 +78,16 @@ func Run() {
 	resultsRepo := database.NewPostgresResultsRepository(database.DB)
 	resultsUseCase := usecase.NewResultsUseCase(resultsRepo, domain.DefaultRiskThresholds)
 
+	notificationRepo := database.NewPostgresNotificationRepository(database.DB)
+	notificationUseCase := usecase.NewNotificationUseCase(notificationRepo)
+
 	chatRepo := database.NewPostgresChatRepository(database.DB)
-	chatUseCase := usecase.NewChatUseCase(chatRepo, catalogRepo, entitlementRepo)
+	// Wiring the notification repo turns every posted chat message into a
+	// bell-feed notification for the other participant (WithNotifications).
+	chatUseCase := usecase.NewChatUseCase(
+		chatRepo, catalogRepo, entitlementRepo,
+		usecase.WithNotifications(notificationRepo, userRepo),
+	)
 
 	uploadsDir := envOrDefault("UPLOADS_DIR", filepath.Join(".", "uploads"))
 	//nolint:mnd // 0755 = rwxr-xr-x, standard directory permission
@@ -128,6 +136,7 @@ func Run() {
 		Review:         delivery.NewReviewHandler(reviewUseCase),
 		Rating:         delivery.NewRatingHandler(ratingUseCase),
 		Admin:          delivery.NewAdminHandler(adminUseCase, analytics),
+		Notification:   delivery.NewNotificationHandler(notificationUseCase),
 	}
 
 	router := delivery.NewRouter(handlers, delivery.Deps{

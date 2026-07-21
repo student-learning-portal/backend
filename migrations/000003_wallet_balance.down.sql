@@ -1,2 +1,2 @@
 ALTER TABLE users
-    DROP COLUMN wallet_balance;
+    DROP COLUMN IF EXISTS wallet_balance;

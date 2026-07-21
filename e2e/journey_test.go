@@ -171,6 +171,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 	authUC := usecase.NewAuthUseCase(userRepo, tokens)
 	catalogUC := usecase.NewCatalogUseCase(catalogRepo, lessonRepo)
 	adminUC := usecase.NewAdminUseCase(userRepo)
+	notificationRepo := database.NewPostgresNotificationRepository(db)
 	handlers := delivery.Handlers{
 		Catalog:        delivery.NewCatalogHandler(catalogUC),
 		Auth:           delivery.NewAuthHandler(authUC, analytics),
@@ -181,8 +182,12 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 		Analytics:      delivery.NewAnalyticsHandler(usecase.NewAnalyticsUseCase(analyticsRepo, catalogRepo, domain.DefaultRiskThresholds)),
 		Results:        delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db), domain.DefaultRiskThresholds)),
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUC, uploadsDir),
-		Chat:           delivery.NewChatHandler(usecase.NewChatUseCase(database.NewPostgresChatRepository(db), catalogRepo, entitlementRepo)),
-		Admin:          delivery.NewAdminHandler(adminUC, analytics),
+		Chat: delivery.NewChatHandler(usecase.NewChatUseCase(
+			database.NewPostgresChatRepository(db), catalogRepo, entitlementRepo,
+			usecase.WithNotifications(notificationRepo, userRepo),
+		)),
+		Admin:        delivery.NewAdminHandler(adminUC, analytics),
+		Notification: delivery.NewNotificationHandler(usecase.NewNotificationUseCase(notificationRepo)),
 	}
 	return httptest.NewServer(delivery.NewRouter(handlers, delivery.Deps{
 		Tokens:       tokens,

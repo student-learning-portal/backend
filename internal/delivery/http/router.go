@@ -23,6 +23,7 @@ type Handlers struct {
 	Review         *ReviewHandler
 	Rating         *RatingHandler
 	Admin          *AdminHandler
+	Notification   *NotificationHandler
 }
 
 // Deps bundles what the router's middleware needs, as opposed to the per-domain
@@ -73,6 +74,7 @@ func NewRouter(h Handlers, d Deps) http.Handler {
 	registerTeacherContentRoutes(mux, h, teacherOnly)
 	registerAdminRoutes(mux, h, auth)
 	registerChatRoutes(mux, h, auth, teacherOnly)
+	registerNotificationRoutes(mux, h, auth)
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
 	mux.HandleFunc("GET /api/v1/users/me/results", auth(h.Results.MyResults))
@@ -164,6 +166,18 @@ func registerChatRoutes(mux *http.ServeMux, h Handlers, auth, teacherOnly middle
 	mux.HandleFunc("GET "+threads, teacherOnly(h.Chat.TeacherThreads))
 	mux.HandleFunc("GET "+threads+"/{student_id}/messages", teacherOnly(h.Chat.TeacherThread))
 	mux.HandleFunc("POST "+threads+"/{student_id}/messages", teacherOnly(h.Chat.TeacherSend))
+}
+
+// registerNotificationRoutes wires the authenticated user's in-app "bell" feed.
+// Every route is auth-guarded and scoped to the caller inside the handler, so
+// any signed-in role (student, teacher, admin) sees only their own feed.
+func registerNotificationRoutes(mux *http.ServeMux, h Handlers, auth middleware) {
+	const base = "/api/v1/notifications"
+
+	mux.HandleFunc("GET "+base, auth(h.Notification.List))
+	mux.HandleFunc("GET "+base+"/unread-count", auth(h.Notification.UnreadCount))
+	mux.HandleFunc("POST "+base+"/read-all", auth(h.Notification.MarkAllRead))
+	mux.HandleFunc("POST "+base+"/{id}/read", auth(h.Notification.MarkRead))
 }
 
 // registerRatingRoutes wires the local 1-10 rating system (separate from the
