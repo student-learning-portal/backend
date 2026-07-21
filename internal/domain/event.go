@@ -33,6 +33,12 @@ const (
 	EventPlayerLessonOpen     = "player.lesson_open"
 	EventPlayerProgressSave   = "player.progress_save"
 	EventPlayerLessonComplete = "player.lesson_complete"
+
+	// admin.* records the moderation decisions an administrator takes on the
+	// teacher approval queue. ServiceForEvent leaves them on the gateway
+	// surface, the same as auth.*.
+	EventAdminTeacherApproved = "admin.teacher_approved"
+	EventAdminTeacherRejected = "admin.teacher_rejected"
 )
 
 // Service identifies the emitting surface (§2 source.service). The set is fixed

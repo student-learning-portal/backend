@@ -44,16 +44,21 @@ type userPayload struct {
 	Role      string  `json:"role"`
 	Balance   float64 `json:"balance"`
 	AvatarURL string  `json:"avatar_url,omitempty"`
+	// TeacherStatus is the approval state of a teacher account (pending /
+	// approved / rejected); omitted for students and admins, which have nothing
+	// to approve. The frontend keys its "awaiting approval" screen off it.
+	TeacherStatus string `json:"teacher_status,omitempty"`
 }
 
 func toUserPayload(u domain.User) userPayload {
 	return userPayload{
-		ID:        u.ID,
-		Email:     u.Email,
-		FullName:  u.FullName,
-		Role:      string(u.Role),
-		Balance:   u.Balance,
-		AvatarURL: u.AvatarURL,
+		ID:            u.ID,
+		Email:         u.Email,
+		FullName:      u.FullName,
+		Role:          string(u.Role),
+		Balance:       u.Balance,
+		AvatarURL:     u.AvatarURL,
+		TeacherStatus: string(u.TeacherStatus),
 	}
 }
 

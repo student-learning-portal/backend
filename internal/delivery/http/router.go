@@ -22,20 +22,27 @@ type Handlers struct {
 	Chat           *ChatHandler
 	Review         *ReviewHandler
 	Rating         *RatingHandler
+	Admin          *AdminHandler
+}
+
+// Deps bundles what the router's middleware needs, as opposed to the per-domain
+// handlers in Handlers: the token service every guarded route verifies with, the
+// repositories the entitlement/approval gates read, the analytics recorder those
+// gates emit to, and the directory uploaded files are served from.
+type Deps struct {
+	Tokens       domain.TokenService
+	Entitlements domain.EntitlementRepository
+	Catalog      domain.CatalogRepository
+	Users        domain.UserRepository
+	Analytics    *usecase.AnalyticsRecorder
+	UploadsDir   string
 }
 
 // NewRouter creates a new HTTP multiplexer and registers all project routes.
 // The returned handler is wrapped in WithLogContext so every request carries the
 // request-scoped logging context the analytics recorder reads, and in
 // WithAccessLog so every request emits a structured operational log line.
-func NewRouter(
-	h Handlers,
-	tokens domain.TokenService,
-	entitlements domain.EntitlementRepository,
-	catalog domain.CatalogRepository,
-	analytics *usecase.AnalyticsRecorder,
-	uploadsDir string,
-) http.Handler {
+func NewRouter(h Handlers, d Deps) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/hello", HelloHandler)
@@ -46,15 +53,26 @@ func NewRouter(
 	// Proxies to the practicum-team integration service (internal/practicum) — see ReviewHandler.
 	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/rating", h.Review.RatingSummary)
 
+	auth := RequireAuth(d.Tokens)
+
 	mux.HandleFunc("POST /api/v1/auth/register", h.Auth.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Auth.Login)
-	mux.HandleFunc("GET /api/v1/auth/me", RequireAuth(tokens)(h.Auth.Me))
+	mux.HandleFunc("GET /api/v1/auth/me", auth(h.Auth.Me))
 
 	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}", h.Auth.GetTeacher)
 
-	auth := RequireAuth(tokens)
 	registerRatingRoutes(mux, h, auth)
-	guard := RequireEntitlement(entitlements, catalog, analytics)
+	guard := RequireEntitlement(d.Entitlements, d.Catalog, d.Analytics)
+
+	// teacherOnly chains the approval gate after authentication: a teacher whose
+	// registration an administrator hasn't confirmed yet is turned away before
+	// reaching any authoring/monitoring handler (see RequireApprovedTeacher).
+	approved := RequireApprovedTeacher(d.Users)
+	teacherOnly := func(next http.HandlerFunc) http.HandlerFunc { return auth(approved(next)) }
+
+	registerTeacherContentRoutes(mux, h, teacherOnly)
+	registerAdminRoutes(mux, h, auth)
+	registerChatRoutes(mux, h, auth, teacherOnly)
 
 	mux.HandleFunc("GET /api/v1/users/me/courses", auth(h.UserCourses.MyCourses))
 	mux.HandleFunc("GET /api/v1/users/me/results", auth(h.Results.MyResults))
@@ -67,7 +85,7 @@ func NewRouter(
 	mux.HandleFunc("PATCH /api/v1/users/me/name", auth(h.Profile.PatchName))
 	mux.HandleFunc("POST /api/v1/users/me/avatar", auth(h.Profile.PostAvatar))
 
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(d.UploadsDir))))
 
 	mux.HandleFunc("POST /api/v1/purchase/checkout", auth(h.Purchase.Checkout))
 	mux.HandleFunc("POST /api/v1/purchase/refund", auth(h.Purchase.Refund))
@@ -88,44 +106,70 @@ func NewRouter(
 	)
 
 	// Analytics: role (+ ownership, for the teacher view) are enforced inside the handlers.
-	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", auth(h.Analytics.TeacherDashboard))
+	mux.HandleFunc("GET /api/v1/analytics/teacher/dashboard", teacherOnly(h.Analytics.TeacherDashboard))
 	mux.HandleFunc("GET /api/v1/analytics/student/me", auth(h.Analytics.StudentDashboard))
 
-	// Teacher course/lesson authoring: role + ownership are enforced inside the handlers.
-	mux.HandleFunc("POST /api/v1/teacher/courses", auth(h.TeacherContent.CreateCourse))
-	mux.HandleFunc("PATCH /api/v1/teacher/courses/{course_id}", auth(h.TeacherContent.UpdateCourse))
-	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}", auth(h.TeacherContent.DeleteCourse))
+	return WithLogContext(WithAccessLog(mux))
+}
 
-	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons", auth(h.TeacherContent.CreateLesson))
-	mux.HandleFunc("PUT /api/v1/teacher/courses/{course_id}/lessons/order", auth(h.TeacherContent.ReorderLessons))
-	mux.HandleFunc("PATCH /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}", auth(h.TeacherContent.UpdateLesson))
-	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}", auth(h.TeacherContent.DeleteLesson))
+// middleware is one link of a handler chain (RequireAuth, the teacherOnly
+// composition, ...), named so the route groups below read as a short signature
+// instead of repeating the function type.
+type middleware = func(http.HandlerFunc) http.HandlerFunc
 
-	mux.HandleFunc("PUT /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.SetLessonMedia))
-	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media/upload", auth(h.TeacherContent.UploadLessonMedia))
-	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/media", auth(h.TeacherContent.DeleteLessonMedia))
+// registerTeacherContentRoutes wires the teacher's course/lesson authoring
+// surface. Every route takes teacherOnly, so an unapproved teacher is stopped
+// at the door; ownership of the specific course is enforced further in, by the
+// use case. Split out of NewRouter to keep it readable.
+func registerTeacherContentRoutes(mux *http.ServeMux, h Handlers, teacherOnly middleware) {
+	c := h.TeacherContent
+	const courses = "/api/v1/teacher/courses"
+	const lessons = courses + "/{course_id}/lessons/{lesson_id}"
 
-	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials", auth(h.TeacherContent.AddMaterial))
-	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/upload", auth(h.TeacherContent.UploadMaterial))
-	mux.HandleFunc("DELETE /api/v1/teacher/courses/{course_id}/lessons/{lesson_id}/materials/{material_id}",
-		auth(h.TeacherContent.DeleteMaterial))
+	mux.HandleFunc("POST "+courses, teacherOnly(c.CreateCourse))
+	mux.HandleFunc("PATCH "+courses+"/{course_id}", teacherOnly(c.UpdateCourse))
+	mux.HandleFunc("DELETE "+courses+"/{course_id}", teacherOnly(c.DeleteCourse))
 
-	// Chat: student <-> teacher, scoped to a course. A student uses their own
-	// thread (must be enrolled); a teacher uses per-student threads on courses
-	// they own. Role + enrollment/ownership are enforced inside the handlers.
+	mux.HandleFunc("POST "+courses+"/{course_id}/lessons", teacherOnly(c.CreateLesson))
+	mux.HandleFunc("PUT "+courses+"/{course_id}/lessons/order", teacherOnly(c.ReorderLessons))
+	mux.HandleFunc("PATCH "+lessons, teacherOnly(c.UpdateLesson))
+	mux.HandleFunc("DELETE "+lessons, teacherOnly(c.DeleteLesson))
+
+	mux.HandleFunc("PUT "+lessons+"/media", teacherOnly(c.SetLessonMedia))
+	mux.HandleFunc("POST "+lessons+"/media/upload", teacherOnly(c.UploadLessonMedia))
+	mux.HandleFunc("DELETE "+lessons+"/media", teacherOnly(c.DeleteLessonMedia))
+
+	mux.HandleFunc("POST "+lessons+"/materials", teacherOnly(c.AddMaterial))
+	mux.HandleFunc("POST "+lessons+"/materials/upload", teacherOnly(c.UploadMaterial))
+	mux.HandleFunc("DELETE "+lessons+"/materials/{material_id}", teacherOnly(c.DeleteMaterial))
+}
+
+// registerAdminRoutes wires the teacher approval queue. RequireAdmin rejects
+// every other role, so a teacher can never confirm their own registration.
+func registerAdminRoutes(mux *http.ServeMux, h Handlers, auth middleware) {
+	mux.HandleFunc("GET /api/v1/admin/teachers", auth(RequireAdmin(h.Admin.ListTeachers)))
+	mux.HandleFunc("POST /api/v1/admin/teachers/{user_id}/approve", auth(RequireAdmin(h.Admin.ApproveTeacher)))
+	mux.HandleFunc("POST /api/v1/admin/teachers/{user_id}/reject", auth(RequireAdmin(h.Admin.RejectTeacher)))
+}
+
+// registerChatRoutes wires the course-scoped student <-> teacher chat. A student
+// uses their own thread (must be enrolled); a teacher uses per-student threads
+// on courses they own. Role + enrollment/ownership are enforced inside the
+// handlers; the teacher side additionally requires an approved account.
+func registerChatRoutes(mux *http.ServeMux, h Handlers, auth, teacherOnly middleware) {
+	const threads = "/api/v1/teacher/courses/{course_id}/threads"
+
 	mux.HandleFunc("GET /api/v1/courses/{course_id}/messages", auth(h.Chat.StudentThread))
 	mux.HandleFunc("POST /api/v1/courses/{course_id}/messages", auth(h.Chat.StudentSend))
-	mux.HandleFunc("GET /api/v1/teacher/courses/{course_id}/threads", auth(h.Chat.TeacherThreads))
-	mux.HandleFunc("GET /api/v1/teacher/courses/{course_id}/threads/{student_id}/messages", auth(h.Chat.TeacherThread))
-	mux.HandleFunc("POST /api/v1/teacher/courses/{course_id}/threads/{student_id}/messages", auth(h.Chat.TeacherSend))
-
-	return WithLogContext(WithAccessLog(mux))
+	mux.HandleFunc("GET "+threads, teacherOnly(h.Chat.TeacherThreads))
+	mux.HandleFunc("GET "+threads+"/{student_id}/messages", teacherOnly(h.Chat.TeacherThread))
+	mux.HandleFunc("POST "+threads+"/{student_id}/messages", teacherOnly(h.Chat.TeacherSend))
 }
 
 // registerRatingRoutes wires the local 1-10 rating system (separate from the
 // practicum-proxied course review/rating under /catalog/courses/{course_id}/rating
 // and /comments): see RatingHandler. Split out of NewRouter to keep it readable.
-func registerRatingRoutes(mux *http.ServeMux, h Handlers, auth func(http.HandlerFunc) http.HandlerFunc) {
+func registerRatingRoutes(mux *http.ServeMux, h Handlers, auth middleware) {
 	mux.HandleFunc("GET /api/v1/teachers/{teacher_id}/ratings", h.Rating.TeacherRatingSummary)
 	mux.HandleFunc("GET /api/v1/catalog/courses/{course_id}/ratings", h.Rating.CourseRatingSummary)
 

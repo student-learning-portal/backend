@@ -38,12 +38,22 @@ func (uc *AuthUseCase) Register(input domain.RegisterInput) (string, domain.User
 		return "", domain.User{}, fmt.Errorf("hash password: %w", err)
 	}
 
+	// A teacher signs up into the administrator's review queue rather than
+	// straight into the role: the account is created and can sign in, but
+	// RequireApprovedTeacher keeps the authoring endpoints shut until an admin
+	// confirms it. Students need no review, so their status stays empty.
+	var teacherStatus domain.TeacherStatus
+	if input.Role == domain.RoleTeacher {
+		teacherStatus = domain.TeacherStatusPending
+	}
+
 	created, err := uc.users.Create(domain.User{
-		Email:        email,
-		PasswordHash: string(hash),
-		FullName:     strings.TrimSpace(input.FullName),
-		Role:         input.Role,
-		AnonymousID:  input.AnonymousID,
+		Email:         email,
+		PasswordHash:  string(hash),
+		FullName:      strings.TrimSpace(input.FullName),
+		Role:          input.Role,
+		AnonymousID:   input.AnonymousID,
+		TeacherStatus: teacherStatus,
 	})
 	if err != nil {
 		return "", domain.User{}, err

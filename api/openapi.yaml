@@ -95,13 +95,17 @@ paths:
                   description: Links pre-auth anonymous activity to this account, if any.
       responses:
         '201':
-          description: Account created. Returns a JWT token and the new user.
+          description: >
+            Account created. Returns a JWT token and the new user. A teacher is
+            created with teacher_status=pending and can sign in immediately, but
+            the teacher-only endpoints stay 403 until an administrator approves
+            the account (see /admin/teachers).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '400':
-          description: Invalid input
+          description: Invalid input (role must be student or teacher — admin is not self-assignable)
         '409':
           description: Email already registered
 
@@ -1172,7 +1176,113 @@ paths:
           description: Missing or invalid bearer token
 
   # ---------------------------------------------------------
+  # ADMIN (teacher approval queue)
+  #
+  # Administrator-only. A teacher registers as pending and every
+  # /teacher/** endpoint answers 403 until an approval lands here.
+  # ---------------------------------------------------------
+  /admin/teachers:
+    get:
+      summary: List teacher registrations by approval state
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+          description: Defaults to the review queue (pending); `all` returns every teacher.
+      responses:
+        '200':
+          description: Teacher applications, newest registration first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherApplications'
+        '400':
+          description: Unknown status filter
+        '401':
+          description: Unauthorized
+        '403':
+          description: Administrator role required
+
+  /admin/teachers/{user_id}/approve:
+    post:
+      summary: Confirm a teacher registration
+      description: >
+        Opens the teacher-only endpoints for the account. The decision takes
+        effect immediately, including for tokens issued before it — approval is
+        read from the database on every request.
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated application
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherApplication'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Administrator role required
+        '404':
+          description: Teacher not found
+        '409':
+          description: The target account is not a teacher
+
+  /admin/teachers/{user_id}/reject:
+    post:
+      summary: Decline a teacher registration
+      description: >
+        The account stays in place and the decision is reversible via
+        /approve — the teacher-only endpoints simply remain closed.
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated application
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherApplication'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Administrator role required
+        '404':
+          description: Teacher not found
+        '409':
+          description: The target account is not a teacher
+
+  # ---------------------------------------------------------
   # TEACHER CONTENT AUTHORING (courses, lessons, media, materials)
+  #
+  # Every route below additionally requires an approved teacher
+  # (403 teacher account is awaiting administrator approval).
   # ---------------------------------------------------------
   /teacher/courses:
     post:
@@ -1825,13 +1935,57 @@ components:
           type: string
         role:
           type: string
-          enum: [student, teacher]
+          enum: [student, teacher, admin]
+          description: >
+            admin is never self-assignable: the account is created by the server's
+            startup bootstrap (ADMIN_LOGIN / ADMIN_PASSWORD), not by registration.
         balance:
           type: number
           description: Virtual wallet balance (sandbox only)
         avatar_url:
           type: string
           description: Server-relative path to the profile picture, e.g. /uploads/avatars/{id}.jpg. Omitted when no avatar has been set.
+        teacher_status:
+          $ref: '#/components/schemas/TeacherStatus'
+    TeacherStatus:
+      type: string
+      enum: [pending, approved, rejected]
+      description: >
+        Where a teacher account sits in the administrator's approval queue.
+        Omitted for students and admins. A teacher registers as `pending` and
+        only reaches the teacher-only endpoints once an administrator approves
+        them; until then those endpoints answer 403.
+    TeacherApplication:
+      type: object
+      description: One row of the administrator's teacher approval queue.
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/TeacherStatus'
+        registered_at:
+          type: string
+          format: date-time
+        reviewed_at:
+          type: string
+          format: date-time
+          description: When an administrator decided; omitted while still pending.
+    TeacherApplications:
+      type: object
+      properties:
+        pending:
+          type: integer
+          description: How many of the returned applications are still awaiting review.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherApplication'
     TeacherProfile:
       type: object
       properties:

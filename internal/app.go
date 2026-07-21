@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -58,6 +59,13 @@ func Run() {
 
 	userRepo := database.NewPostgresUserRepository(database.DB)
 	authUseCase := usecase.NewAuthUseCase(userRepo, tokens)
+
+	// The administrator reviews teacher registrations (a teacher signs up as
+	// 'pending' and stays locked out of the authoring endpoints until it is
+	// confirmed). There is no way to register an admin, so the account is
+	// bootstrapped here — created once if missing, never overwritten after.
+	adminUseCase := usecase.NewAdminUseCase(userRepo)
+	ensureAdminAccount(adminUseCase)
 
 	entitlementRepo := database.NewPostgresEntitlementRepository(database.DB)
 	paymentUseCase := usecase.NewPaymentUseCase(entitlementRepo, catalogRepo, userRepo)
@@ -119,9 +127,17 @@ func Run() {
 		Chat:           delivery.NewChatHandler(chatUseCase),
 		Review:         delivery.NewReviewHandler(reviewUseCase),
 		Rating:         delivery.NewRatingHandler(ratingUseCase),
+		Admin:          delivery.NewAdminHandler(adminUseCase, analytics),
 	}
 
-	router := delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir)
+	router := delivery.NewRouter(handlers, delivery.Deps{
+		Tokens:       tokens,
+		Entitlements: entitlementRepo,
+		Catalog:      catalogRepo,
+		Users:        userRepo,
+		Analytics:    analytics,
+		UploadsDir:   uploadsDir,
+	})
 
 	port := ":8080"
 	logging.L().Info("server listening", slog.String("port", port))
@@ -135,6 +151,33 @@ func Run() {
 	if err := srv.ListenAndServe(); err != nil {
 		logging.L().Error("server failed", slog.Any("error", err))
 		os.Exit(1)
+	}
+}
+
+// ensureAdminAccount creates the moderation account on startup when it is
+// missing. Credentials come from the environment and fall back to the documented
+// defaults (admin / admin111) so a fresh database is usable immediately.
+//
+// A failure here is logged, not fatal: the portal itself keeps working without
+// an administrator, only the teacher approval queue is left unattended — that's
+// a far better outcome than refusing to serve any traffic at all.
+func ensureAdminAccount(adminUseCase *usecase.AdminUseCase) {
+	login := envOrDefault("ADMIN_LOGIN", "admin")
+	created, err := adminUseCase.EnsureAdminAccount(
+		context.Background(),
+		login,
+		envOrDefault("ADMIN_PASSWORD", "admin111"),
+		envOrDefault("ADMIN_FULL_NAME", "Администратор"),
+	)
+	if err != nil {
+		logging.L().Error("failed to ensure administrator account",
+			slog.String("admin_login", login),
+			slog.Any("error", err),
+		)
+		return
+	}
+	if created {
+		logging.L().Info("administrator account created", slog.String("admin_login", login))
 	}
 }
 

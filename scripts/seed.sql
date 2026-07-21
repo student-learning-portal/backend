@@ -25,15 +25,19 @@ RESTART IDENTITY CASCADE;
 -- ============================================================
 -- Users: 4 teachers, 4 students
 -- ============================================================
-INSERT INTO users (id, email, password_hash, full_name, role) VALUES
-    ('11111111-1111-4111-8111-000000000001', 'alice.teacher@example.com', '$2a$10$placeholderhashplaceholderhash1', 'Alice Johnson', 'teacher'),
-    ('11111111-1111-4111-8111-000000000002', 'bob.teacher@example.com',   '$2a$10$placeholderhashplaceholderhash2', 'Bob Smith',     'teacher'),
-    ('11111111-1111-4111-8111-000000000003', 'carol.teacher@example.com', '$2a$10$placeholderhashplaceholderhash3', 'Carol Lee',     'teacher'),
-    ('11111111-1111-4111-8111-000000000004', 'dave.teacher@example.com',  '$2a$10$placeholderhashplaceholderhash4', 'Dave Patel',    'teacher'),
-    ('22222222-2222-4222-8222-000000000001', 'eve.student@example.com',   '$2a$10$placeholderhashplaceholderhash5', 'Eve Davis',     'student'),
-    ('22222222-2222-4222-8222-000000000002', 'frank.student@example.com', '$2a$10$placeholderhashplaceholderhash6', 'Frank Miller',  'student'),
-    ('22222222-2222-4222-8222-000000000003', 'grace.student@example.com', '$2a$10$placeholderhashplaceholderhash7', 'Grace Wilson',  'student'),
-    ('22222222-2222-4222-8222-000000000004', 'heidi.student@example.com', '$2a$10$placeholderhashplaceholderhash8', 'Heidi Clark',   'student');
+-- Seeded teachers are pre-approved (teacher_status), otherwise the fixture's
+-- courses would belong to accounts that can't reach the authoring endpoints.
+-- Dave is left pending on purpose, so the administrator's review queue has a
+-- row to work with out of the box.
+INSERT INTO users (id, email, password_hash, full_name, role, teacher_status) VALUES
+    ('11111111-1111-4111-8111-000000000001', 'alice.teacher@example.com', '$2a$10$placeholderhashplaceholderhash1', 'Alice Johnson', 'teacher', 'approved'),
+    ('11111111-1111-4111-8111-000000000002', 'bob.teacher@example.com',   '$2a$10$placeholderhashplaceholderhash2', 'Bob Smith',     'teacher', 'approved'),
+    ('11111111-1111-4111-8111-000000000003', 'carol.teacher@example.com', '$2a$10$placeholderhashplaceholderhash3', 'Carol Lee',     'teacher', 'approved'),
+    ('11111111-1111-4111-8111-000000000004', 'dave.teacher@example.com',  '$2a$10$placeholderhashplaceholderhash4', 'Dave Patel',    'teacher', 'pending'),
+    ('22222222-2222-4222-8222-000000000001', 'eve.student@example.com',   '$2a$10$placeholderhashplaceholderhash5', 'Eve Davis',     'student', NULL),
+    ('22222222-2222-4222-8222-000000000002', 'frank.student@example.com', '$2a$10$placeholderhashplaceholderhash6', 'Frank Miller',  'student', NULL),
+    ('22222222-2222-4222-8222-000000000003', 'grace.student@example.com', '$2a$10$placeholderhashplaceholderhash7', 'Grace Wilson',  'student', NULL),
+    ('22222222-2222-4222-8222-000000000004', 'heidi.student@example.com', '$2a$10$placeholderhashplaceholderhash8', 'Heidi Clark',   'student', NULL);
 
 -- ============================================================
 -- Courses: mix of statuses and price points, across 4 teachers

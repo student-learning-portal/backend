@@ -147,8 +147,23 @@ func (e *testEnv) token(userID string, role domain.Role) string {
 }
 
 // register creates a real account through the API (bcrypt-hashed) and returns
-// its id and a freshly issued bearer token.
+// its id and a freshly issued bearer token. A teacher is additionally approved,
+// since registration now only puts them in the administrator's review queue and
+// every test that registers a teacher wants a working one; the approval flow
+// itself is covered by admin_approval_test.go, which registers without this
+// shortcut.
 func (e *testEnv) register(email, fullName string, role domain.Role) (userID, token string) {
+	e.t.Helper()
+	userID, token = e.registerRaw(email, fullName, role)
+	if role == domain.RoleTeacher {
+		e.approveTeacher(userID)
+	}
+	return userID, token
+}
+
+// registerRaw creates an account and leaves its approval state exactly as the
+// API set it — a teacher comes back pending.
+func (e *testEnv) registerRaw(email, fullName string, role domain.Role) (userID, token string) {
 	e.t.Helper()
 	resp := e.do(http.MethodPost, "/api/v1/auth/register", "", registerBody{
 		Email:    email,
@@ -168,6 +183,33 @@ func (e *testEnv) register(email, fullName string, role domain.Role) (userID, to
 		e.t.Fatalf("register returned empty id/token: %s", string(resp.body))
 	}
 	return out.User.ID, out.Token
+}
+
+// approveTeacher confirms a teacher registration directly in the database, the
+// same state POST /admin/teachers/{id}/approve writes.
+func (e *testEnv) approveTeacher(teacherID string) {
+	e.t.Helper()
+	if _, err := e.db.Exec(
+		`UPDATE users SET teacher_status = 'approved', teacher_status_updated_at = now() WHERE id = $1`,
+		teacherID,
+	); err != nil {
+		e.t.Fatalf("approve teacher %s: %v", teacherID, err)
+	}
+}
+
+// insertAdmin creates an administrator account directly (there is no
+// registration path to one) and returns its id with a bearer token.
+func (e *testEnv) insertAdmin(login string) (adminID, token string) {
+	e.t.Helper()
+	err := e.db.QueryRow(
+		`INSERT INTO users (email, password_hash, full_name, role)
+		 VALUES ($1, 'x', 'Portal Admin', 'admin') RETURNING id`,
+		login,
+	).Scan(&adminID)
+	if err != nil {
+		e.t.Fatalf("insert admin: %v", err)
+	}
+	return adminID, e.token(adminID, domain.RoleAdmin)
 }
 
 // --- direct DB seeding ---------------------------------------------------

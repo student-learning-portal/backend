@@ -176,9 +176,12 @@ registered in `internal/delivery/http/router.go`:
 | `GET /api/v1/catalog/courses/{course_id}/lessons` | — | Lessons for a published course |
 | `GET /api/v1/catalog/courses/{course_id}/rating` | — | Aggregate rating, proxied to the practicum-team service (see below) |
 | `POST /api/v1/catalog/courses/{course_id}/comments` | JWT (student) | Leave a review, proxied to the practicum-team service (see below) |
-| `POST /api/v1/auth/register` | — | Create account, returns JWT |
+| `POST /api/v1/auth/register` | — | Create account, returns JWT (a teacher lands in the approval queue — see below) |
 | `POST /api/v1/auth/login` | — | Returns JWT |
-| `GET /api/v1/auth/me` | JWT | Caller's profile |
+| `GET /api/v1/auth/me` | JWT | Caller's profile (includes `teacher_status` for teachers) |
+| `GET /api/v1/admin/teachers?status=` | JWT (admin) | Teacher approval queue (`pending` by default, `all` for every teacher) |
+| `POST /api/v1/admin/teachers/{user_id}/approve` | JWT (admin) | Confirm a teacher registration |
+| `POST /api/v1/admin/teachers/{user_id}/reject` | JWT (admin) | Decline it (reversible) |
 | `GET /api/v1/teachers/{teacher_id}` | — | Public teacher profile (404s for non-teachers, avoids role enumeration) |
 | `GET /api/v1/users/me/courses` | JWT | Caller's enrolled courses |
 | `GET /api/v1/users/me/results` | JWT | Caller's per-course results |
@@ -191,7 +194,7 @@ registered in `internal/delivery/http/router.go`:
 | `GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}` | JWT + entitlement | See item 6 above |
 | `POST /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress` | JWT + entitlement | See item 7 above |
 | `GET /api/v1/player/courses/{course_id}/lessons/{lesson_id}/progress` | JWT + entitlement | See item 8 above |
-| `GET /api/v1/analytics/teacher/dashboard?course_id=` | JWT (teacher, owner) | AT_RISK/ON_TRACK per student |
+| `GET /api/v1/analytics/teacher/dashboard?course_id=` | JWT (approved teacher, owner) | AT_RISK/ON_TRACK per student |
 | `GET /api/v1/analytics/student/me` | JWT | Caller's own progress across courses |
 | `POST /api/v1/teacher/courses` | JWT (teacher) | Create draft course |
 | `PATCH /api/v1/teacher/courses/{course_id}` | JWT (teacher, owner) | Update course / change status |
@@ -246,6 +249,57 @@ SLP_E2E=1 DB_HOST=localhost DB_PORT=5433 POSTGRES_USER=admin \
   go test -v ./e2e/
 ```
 
+## Administrator & Teacher Approval
+
+Registering as a teacher no longer grants the role outright: the account is
+created with `users.teacher_status = 'pending'` and an administrator has to
+confirm it. Students are unaffected — they have no `teacher_status` at all.
+
+**What a pending teacher can and cannot do.** They can sign in, read their own
+profile, and use everything a signed-in user can; the `/api/v1/teacher/**`
+routes and the teacher analytics dashboard answer `403` with
+`{"error":"teacher account is awaiting administrator approval","status":"pending"}`
+until the decision lands. The gate is the `RequireApprovedTeacher` middleware
+(`internal/delivery/http/middleware.go`), which reads the status from the
+database on every request — so an approval takes effect immediately, without
+the teacher having to sign in again for a fresh token. Rejecting an already
+approved teacher closes the endpoints again, and the decision stays reversible.
+
+**The administrator account** is bootstrapped on startup
+(`internal/app.go`'s `ensureAdminAccount`), because there is deliberately no way
+to register one: `domain.Role.Valid` rejects `admin` at registration, so the
+public endpoint can never mint a moderator. Defaults are `admin` / `admin111`:
+
+| Var | Meaning | Default |
+|---|---|---|
+| `ADMIN_LOGIN` | Login for the admin account. Stored in the `email` column but not required to be an email address. | `admin` |
+| `ADMIN_PASSWORD` | Password, hashed with bcrypt before storage (min 8 chars). | `admin111` |
+| `ADMIN_FULL_NAME` | Display name. | `Администратор` |
+
+The bootstrap only ever *creates* — an existing admin row is left untouched, so
+a password changed on purpose survives restarts. To rotate the password back to
+the configured one, delete the row (`DELETE FROM users WHERE role = 'admin'`)
+and restart. If the login is already taken by a non-admin account, the server
+logs the conflict and keeps serving without an administrator.
+
+Walk through the flow with curl:
+```bash
+# 1. A teacher registers — note teacher_status in the response.
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"tess@example.com","password":"password123","full_name":"Tess","role":"teacher"}'
+
+# 2. The administrator signs in and reads the queue.
+ADMIN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin","password":"admin111"}' | jq -r .token)
+curl -s http://localhost:8080/api/v1/admin/teachers -H "Authorization: Bearer $ADMIN"
+
+# 3. And approves (or rejects) the application.
+curl -X POST http://localhost:8080/api/v1/admin/teachers/<user_id>/approve \
+  -H "Authorization: Bearer $ADMIN"
+```
+
 ## Analytics Event Logging
 
 The server emits a structured analytics event stream implementing
@@ -267,6 +321,7 @@ truth.
 |---|---|
 | `POST /auth/register` | `auth.signup` |
 | `POST /auth/login` | `auth.login` |
+| `POST /admin/teachers/{id}/approve` \| `/reject` | `admin.teacher_approved` / `admin.teacher_rejected` |
 | `POST /purchase/checkout` | `access.checkout_start`, `access.payment_succeeded`, `access.granted` |
 | `POST /purchase/webhook` | `access.payment_succeeded` + `access.granted` (SUCCESS) / `access.refund_completed` + `access.revoked` (REFUNDED) |
 | `RequireEntitlement` guard | `access.check` (+ `access.denied` on refusal) |
@@ -339,7 +394,8 @@ integration.
 - **Passwords** are hashed with bcrypt (`golang.org/x/crypto/bcrypt`, default cost) before storage — the `users.password_hash` column never holds plaintext, and only the hash is ever compared on login.
 - **Sessions** are stateless HS256 JWTs (`github.com/golang-jwt/jwt/v5`) signed with `JWT_SECRET`, valid for 24 hours. The server refuses to boot without `JWT_SECRET` set.
 - **Protected routes** go through the `RequireAuth` middleware (`internal/delivery/http/middleware.go`), which rejects requests with a missing, malformed, or expired bearer token before they reach the handler.
-- **Input validation** on registration enforces a real email format, an 8-character password minimum, and a known role (`student`/`teacher`); duplicate emails are rejected with `409 Conflict` instead of leaking which check failed.
+- **Input validation** on registration enforces a real email format, an 8-character password minimum, and a known role (`student`/`teacher`); duplicate emails are rejected with `409 Conflict` instead of leaking which check failed. `admin` is not an accepted role — see "Administrator & Teacher Approval" above.
+- **Privilege escalation** is blocked on both ends: the public endpoint can't create an administrator, and the teacher role only becomes usable after an administrator approves it (`RequireApprovedTeacher`), which is re-checked against the database on every request rather than trusted from the token.
 - **Login failures** (unknown email or wrong password) both return the same `401 Unauthorized` with a generic message, so the API doesn't reveal whether an email is registered.
 
 ## Running Unit Tests

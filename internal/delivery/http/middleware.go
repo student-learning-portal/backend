@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -55,6 +56,76 @@ func RequireAuth(tokens domain.TokenService) func(http.HandlerFunc) http.Handler
 				AuthState: domain.AuthStateAuthenticated,
 			})
 			next(w, r.WithContext(ctx))
+		}
+	}
+}
+
+// RequireAdmin restricts a route to administrator accounts. Must be chained
+// after RequireAuth. The role is read off the verified token: an admin is only
+// ever created by the startup bootstrap, so the claim can't be self-issued.
+func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := claimsFromContext(r.Context())
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "missing authentication")
+			return
+		}
+		if claims.Role != domain.RoleAdmin {
+			writeError(w, http.StatusForbidden, "administrator role required")
+			return
+		}
+		next(w, r)
+	}
+}
+
+// RequireApprovedTeacher blocks the teacher-only endpoints for a teacher whose
+// registration an administrator hasn't confirmed yet. Must be chained after
+// RequireAuth.
+//
+// Approval state is read from the database on every call rather than from the
+// token: tokens live for 24h, so a teacher approved (or rejected) mid-session
+// would otherwise keep the stale verdict until their next login. Callers that
+// aren't teachers pass straight through — the individual handlers still do
+// their own role check, and this middleware only answers "is this teacher
+// allowed to act as one".
+func RequireApprovedTeacher(users domain.UserRepository) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := claimsFromContext(r.Context())
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "missing authentication")
+				return
+			}
+			if claims.Role != domain.RoleTeacher {
+				next(w, r)
+				return
+			}
+
+			user, err := users.GetByID(claims.UserID)
+			if err != nil {
+				if errors.Is(err, domain.ErrUserNotFound) {
+					writeError(w, http.StatusUnauthorized, "account no longer exists")
+					return
+				}
+				logging.FromContext(r.Context()).Error("teacher approval check failed",
+					slog.String("actor_id", claims.UserID),
+					slog.Any("error", err),
+				)
+				writeError(w, http.StatusInternalServerError, "approval check failed")
+				return
+			}
+
+			if !user.TeacherApproved() {
+				// The status rides along so the frontend can tell "still
+				// waiting" apart from "declined" without a second request.
+				writeJSON(w, http.StatusForbidden, map[string]string{
+					"error":  domain.ErrTeacherNotApproved.Error(),
+					"status": string(user.TeacherStatus),
+				})
+				return
+			}
+
+			next(w, r)
 		}
 	}
 }

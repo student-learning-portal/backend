@@ -170,6 +170,7 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 
 	authUC := usecase.NewAuthUseCase(userRepo, tokens)
 	catalogUC := usecase.NewCatalogUseCase(catalogRepo, lessonRepo)
+	adminUC := usecase.NewAdminUseCase(userRepo)
 	handlers := delivery.Handlers{
 		Catalog:        delivery.NewCatalogHandler(catalogUC),
 		Auth:           delivery.NewAuthHandler(authUC, analytics),
@@ -181,8 +182,16 @@ func buildServer(t *testing.T, db *sql.DB) *httptest.Server {
 		Results:        delivery.NewResultsHandler(usecase.NewResultsUseCase(database.NewPostgresResultsRepository(db), domain.DefaultRiskThresholds)),
 		TeacherContent: delivery.NewTeacherContentHandler(catalogUC, uploadsDir),
 		Chat:           delivery.NewChatHandler(usecase.NewChatUseCase(database.NewPostgresChatRepository(db), catalogRepo, entitlementRepo)),
+		Admin:          delivery.NewAdminHandler(adminUC, analytics),
 	}
-	return httptest.NewServer(delivery.NewRouter(handlers, tokens, entitlementRepo, catalogRepo, analytics, uploadsDir))
+	return httptest.NewServer(delivery.NewRouter(handlers, delivery.Deps{
+		Tokens:       tokens,
+		Entitlements: entitlementRepo,
+		Catalog:      catalogRepo,
+		Users:        userRepo,
+		Analytics:    analytics,
+		UploadsDir:   uploadsDir,
+	}))
 }
 
 // - response DTOs (mirror the handler structs) ----------------------------
